@@ -1,0 +1,8 @@
+{
+  "name": "Remix Chat with Maps Live",
+  "description": "Interactive map explorer supporting MapLibre GL (3D vector tiles & extruded buildings) and OpenStreetMap/Leaflet raster layers with live Representative Fraction scale readout.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
