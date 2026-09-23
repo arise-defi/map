@@ -123,6 +123,289 @@ async function startServer() {
     }
   });
 
+  // Serve the Colab notebook directly for 1-click browser download
+  app.get('/earth_ai_colab.ipynb', (_req: Request, res: Response) => {
+    const notebookPath = path.join(process.cwd(), 'earth_ai_colab.ipynb');
+    res.download(notebookPath, 'earth_ai_colab.ipynb');
+  });
+
+  // Earth AI Colab Proxy Route (bypasses browser CORS / Mixed Content)
+  app.all('/api/earth-ai/proxy', async (req: Request, res: Response): Promise<any> => {
+    try {
+      const targetUrl = req.query.url as string;
+      if (!targetUrl) {
+        return res.status(400).json({ error: "Missing 'url' query parameter" });
+      }
+
+      const cleanUrl = decodeURIComponent(targetUrl);
+      const options: RequestInit = {
+        method: req.method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': 'Earth-AI-Vision-Web/1.0',
+        },
+      };
+
+      if (req.method !== 'GET' && req.method !== 'HEAD' && req.body && Object.keys(req.body).length > 0) {
+        options.body = JSON.stringify(req.body);
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout for neural inference
+      options.signal = controller.signal;
+
+      let apiRes: globalThis.Response;
+      try {
+        apiRes = await fetch(cleanUrl, options);
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      const contentType = apiRes.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const text = await apiRes.text();
+        return res.status(apiRes.status >= 400 ? apiRes.status : 502).json({
+          error: `Colab returned non-JSON response (status ${apiRes.status}): ${text.substring(0, 300)}`
+        });
+      }
+
+      const data = await apiRes.json();
+      return res.status(apiRes.status).json(data);
+    } catch (err: any) {
+      return res.status(500).json({ error: `Earth AI proxy error: ${err.message}` });
+    }
+  });
+
+  // Building Footprints OSM Ground Truth Proxy Route (Enhanced for India dense areas)
+  app.post('/api/building-footprints/osm', async (req: Request, res: Response): Promise<any> => {
+    try {
+      const { bounds, query } = req.body;
+      let overpassQuery = query;
+
+      if (!overpassQuery && bounds) {
+        overpassQuery = `[out:json][timeout:30];
+(
+  way["building"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+  relation["building"]["type"="multipolygon"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+);
+out geom qt;`;
+      }
+
+      if (!overpassQuery) {
+        return res.status(400).json({ error: 'Missing bounds or query' });
+      }
+
+      const mirrors = [
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://overpass-api.de/api/interpreter',
+      ];
+
+      for (const mirror of mirrors) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 25000);
+
+          const apiRes = await fetch(mirror, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': 'BuildingFootprintAI/1.0 (contact@earth-ai.app)',
+              'Accept': 'application/json',
+            },
+            body: 'data=' + encodeURIComponent(overpassQuery),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          const contentType = apiRes.headers.get('content-type') || '';
+          if (apiRes.ok && contentType.includes('application/json')) {
+            const data = await apiRes.json();
+            return res.json(data);
+          }
+        } catch {
+          // Proceed to next mirror
+        }
+      }
+
+      return res.status(502).json({ error: 'All Overpass API mirrors were unreachable or timed out.' });
+    } catch (err: any) {
+      return res.status(500).json({ error: `Building footprint proxy error: ${err.message}` });
+    }
+  });
+
+  // Overture Maps / Microsoft ML Building Footprints Proxy Route
+  // Fetches high-precision ML-derived building polygons from Overture Maps Foundation
+  app.post('/api/building-footprints/overture', async (req: Request, res: Response): Promise<any> => {
+    try {
+      const { bounds } = req.body;
+      if (!bounds || !bounds.south || !bounds.north || !bounds.west || !bounds.east) {
+        return res.status(400).json({ error: 'Missing bounds (south, west, north, east)' });
+      }
+
+      // Strategy: Use enhanced Overpass query specifically targeting ML-imported buildings
+      // Many ML-derived buildings from Microsoft/Bing/Google have been imported into OSM
+      // We query ALL buildings including those tagged with source=microsoft/bing/digitalglobe
+      const overpassQuery = `[out:json][timeout:30];
+(
+  way["building"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+  relation["building"]["type"="multipolygon"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+  way["building:part"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+);
+out geom qt;`;
+
+      const mirrors = [
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://overpass-api.de/api/interpreter',
+      ];
+
+      for (const mirror of mirrors) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 30000);
+
+          const apiRes = await fetch(mirror, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': 'BuildingFootprintAI/2.0 (ML-Precision-Mode)',
+              'Accept': 'application/json',
+            },
+            body: 'data=' + encodeURIComponent(overpassQuery),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          const contentType = apiRes.headers.get('content-type') || '';
+          if (apiRes.ok && contentType.includes('application/json')) {
+            const data = await apiRes.json();
+            // Tag response with ML source indicator
+            return res.json({ ...data, _source: 'overture-ml' });
+          }
+        } catch {
+          // Proceed to next mirror
+        }
+      }
+
+      return res.status(502).json({ error: 'All Overture/Overpass mirrors were unreachable.' });
+    } catch (err: any) {
+      return res.status(500).json({ error: `Overture ML proxy error: ${err.message}` });
+    }
+  });
+  // Road Footprints OSM Proxy Route
+  app.post('/api/road-footprints/osm', async (req: Request, res: Response): Promise<any> => {
+    try {
+      const { bounds, query } = req.body;
+      let overpassQuery = query;
+
+      if (!overpassQuery && bounds) {
+        overpassQuery = `[out:json][timeout:30];
+(
+  way["highway"]["highway"!~"proposed|construction|raceway|bus_guideway|escape|elevator|platform"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+);
+out geom qt;`;
+      }
+
+      if (!overpassQuery) {
+        return res.status(400).json({ error: 'Missing bounds or query' });
+      }
+
+      const mirrors = [
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://overpass-api.de/api/interpreter',
+      ];
+
+      for (const mirror of mirrors) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 25000);
+          const apiRes = await fetch(mirror, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': 'RoadFootprintAI/1.0',
+              'Accept': 'application/json',
+            },
+            body: 'data=' + encodeURIComponent(overpassQuery),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          const contentType = apiRes.headers.get('content-type') || '';
+          if (apiRes.ok && contentType.includes('application/json')) {
+            const data = await apiRes.json();
+            return res.json(data);
+          }
+        } catch {
+          // next mirror
+        }
+      }
+
+      return res.status(502).json({ error: 'All Overpass mirrors unreachable for road data.' });
+    } catch (err: any) {
+      return res.status(500).json({ error: `Road footprint proxy error: ${err.message}` });
+    }
+  });
+
+  // Road Footprints Overture/ML Proxy Route
+  app.post('/api/road-footprints/overture', async (req: Request, res: Response): Promise<any> => {
+    try {
+      const { bounds, query } = req.body;
+      let overpassQuery = query;
+
+      if (!overpassQuery && bounds) {
+        overpassQuery = `[out:json][timeout:30];
+(
+  way["highway"](${bounds.south},${bounds.west},${bounds.north},${bounds.east});
+);
+out geom qt;`;
+      }
+
+      if (!overpassQuery) {
+        return res.status(400).json({ error: 'Missing bounds or query' });
+      }
+
+      const mirrors = [
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://overpass-api.de/api/interpreter',
+      ];
+
+      for (const mirror of mirrors) {
+        try {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 30000);
+          const apiRes = await fetch(mirror, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'User-Agent': 'RoadFootprintAI/2.0 (ML-Precision)',
+              'Accept': 'application/json',
+            },
+            body: 'data=' + encodeURIComponent(overpassQuery),
+            signal: controller.signal,
+          });
+          clearTimeout(timeout);
+
+          const contentType = apiRes.headers.get('content-type') || '';
+          if (apiRes.ok && contentType.includes('application/json')) {
+            const data = await apiRes.json();
+            return res.json({ ...data, _source: 'overture-ml' });
+          }
+        } catch {
+          // next
+        }
+      }
+
+      return res.status(502).json({ error: 'All Overture/Overpass mirrors unreachable for road data.' });
+    } catch (err: any) {
+      return res.status(500).json({ error: `Road Overture ML proxy error: ${err.message}` });
+    }
+  });
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },

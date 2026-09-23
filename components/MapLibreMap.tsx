@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { useEarthAIStore } from '../lib/earth-ai';
 
 export type MapLibreStyleKey =
   | 'liberty'
@@ -231,6 +232,10 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
 
     map.on('click', (e) => {
       onMapClick?.(e.lngLat.lat, e.lngLat.lng);
+      const { clickToScan, analyzeTile } = useEarthAIStore.getState();
+      if (clickToScan) {
+        analyzeTile(e.lngLat.lat, e.lngLat.lng, map.getZoom());
+      }
     });
 
     return () => {
@@ -462,6 +467,207 @@ export const MapLibreMap: React.FC<MapLibreMapProps> = ({
       markersRef.current.push(marker);
     });
   }, [markers]);
+
+  // Subscribe to Earth AI store for rendering AI land masks, tile bounds, and home polygons
+  const { currentResult, activeLayers, selectedHomeId, setSelectedHomeId } = useEarthAIStore();
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !isLoaded) return;
+
+    // 1. Tile Bounds
+    const boundsSourceId = 'earth-ai-tile-bounds';
+    const boundsLineLayerId = 'earth-ai-tile-bounds-line';
+
+    if (activeLayers.tileBounds && currentResult?.tile?.bounds) {
+      const b = currentResult.tile.bounds;
+      const polygonData: any = {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            [b.west, b.north],
+            [b.east, b.north],
+            [b.east, b.south],
+            [b.west, b.south],
+            [b.west, b.north],
+          ]],
+        },
+      };
+
+      const existingSource = map.getSource(boundsSourceId) as maplibregl.GeoJSONSource | undefined;
+      if (existingSource && typeof existingSource.setData === 'function') {
+        existingSource.setData(polygonData);
+      } else {
+        if (!map.getSource(boundsSourceId)) {
+          map.addSource(boundsSourceId, {
+            type: 'geojson',
+            data: polygonData,
+          });
+        }
+        if (!map.getLayer(boundsLineLayerId)) {
+          map.addLayer({
+            id: boundsLineLayerId,
+            type: 'line',
+            source: boundsSourceId,
+            paint: {
+              'line-color': '#00f0ff',
+              'line-width': 2,
+              'line-dasharray': [3, 2],
+            },
+          });
+        }
+      }
+    } else {
+      if (map.getLayer(boundsLineLayerId)) map.removeLayer(boundsLineLayerId);
+      if (map.getSource(boundsSourceId)) map.removeSource(boundsSourceId);
+    }
+
+    // 2. SegFormer Mask Overlay
+    const maskSourceId = 'earth-ai-mask-source';
+    const maskLayerId = 'earth-ai-mask-layer';
+
+    if (activeLayers.mask && currentResult?.mask_image && currentResult?.tile?.bounds) {
+      const b = currentResult.tile.bounds;
+      const coords: [[number, number], [number, number], [number, number], [number, number]] = [
+        [b.west, b.north],
+        [b.east, b.north],
+        [b.east, b.south],
+        [b.west, b.south],
+      ];
+
+      // Recreate image source if mask or bounds change
+      if (map.getLayer(maskLayerId)) map.removeLayer(maskLayerId);
+      if (map.getSource(maskSourceId)) map.removeSource(maskSourceId);
+
+      try {
+        map.addSource(maskSourceId, {
+          type: 'image',
+          url: currentResult.mask_image,
+          coordinates: coords,
+        });
+        map.addLayer({
+          id: maskLayerId,
+          type: 'raster',
+          source: maskSourceId,
+          paint: {
+            'raster-opacity': activeLayers.maskOpacity,
+          },
+        });
+      } catch (err) {
+        console.warn('Could not add mask source to MapLibre:', err);
+      }
+    } else {
+      if (map.getLayer(maskLayerId)) map.removeLayer(maskLayerId);
+      if (map.getSource(maskSourceId)) map.removeSource(maskSourceId);
+    }
+
+    // 3. YOLOv8n Home Instance Segmentation Polygons
+    const homesSourceId = 'earth-ai-homes-source';
+    const homesFillLayerId = 'earth-ai-homes-fill';
+    const homesLineLayerId = 'earth-ai-homes-line';
+
+    if (activeLayers.homes && currentResult?.geojson) {
+      const existingHomesSource = map.getSource(homesSourceId) as maplibregl.GeoJSONSource | undefined;
+      if (existingHomesSource && typeof existingHomesSource.setData === 'function') {
+        existingHomesSource.setData(currentResult.geojson);
+      } else {
+        if (!map.getSource(homesSourceId)) {
+          map.addSource(homesSourceId, {
+            type: 'geojson',
+            data: currentResult.geojson,
+          });
+        }
+
+        if (!map.getLayer(homesFillLayerId)) {
+          map.addLayer({
+            id: homesFillLayerId,
+            type: 'fill',
+            source: homesSourceId,
+            paint: {
+              'fill-color': ['coalesce', ['get', 'color'], '#e60000'],
+              'fill-opacity': [
+                'match',
+                ['get', 'category'],
+                'vehicle', 0.65,
+                'road', 0.22,
+                0.08,
+              ],
+            },
+          });
+        }
+
+        if (!map.getLayer(homesLineLayerId)) {
+          map.addLayer({
+            id: homesLineLayerId,
+            type: 'line',
+            source: homesSourceId,
+            paint: {
+              'line-color': ['coalesce', ['get', 'color'], '#e60000'],
+              'line-width': [
+                'match',
+                ['get', 'category'],
+                'road', 2.0,
+                'vehicle', 1.5,
+                1.5,
+              ],
+            },
+          });
+        }
+
+        map.on('click', homesFillLayerId, (e) => {
+          if (e.features && e.features[0]) {
+            const id = e.features[0].properties?.id;
+            if (id) {
+              setSelectedHomeId(id);
+            }
+          }
+        });
+
+        map.on('mouseenter', homesFillLayerId, () => {
+          map.getCanvas().style.cursor = 'pointer';
+        });
+        map.on('mouseleave', homesFillLayerId, () => {
+          map.getCanvas().style.cursor = '';
+        });
+      }
+
+      // Update selected home highlight
+      if (map.getLayer(homesFillLayerId)) {
+        map.setPaintProperty(homesFillLayerId, 'fill-color', [
+          'case',
+          ['==', ['get', 'id'], selectedHomeId || ''],
+          '#ffd700',
+          '#e60000',
+        ]);
+        map.setPaintProperty(homesFillLayerId, 'fill-opacity', [
+          'case',
+          ['==', ['get', 'id'], selectedHomeId || ''],
+          0.35,
+          0.08,
+        ]);
+      }
+      if (map.getLayer(homesLineLayerId)) {
+        map.setPaintProperty(homesLineLayerId, 'line-color', [
+          'case',
+          ['==', ['get', 'id'], selectedHomeId || ''],
+          '#ffd700',
+          '#e60000',
+        ]);
+        map.setPaintProperty(homesLineLayerId, 'line-width', [
+          'case',
+          ['==', ['get', 'id'], selectedHomeId || ''],
+          3,
+          2,
+        ]);
+      }
+    } else {
+      if (map.getLayer(homesFillLayerId)) map.removeLayer(homesFillLayerId);
+      if (map.getLayer(homesLineLayerId)) map.removeLayer(homesLineLayerId);
+      if (map.getSource(homesSourceId)) map.removeSource(homesSourceId);
+    }
+  }, [isLoaded, currentResult, activeLayers, selectedHomeId, setSelectedHomeId]);
 
   return (
     <div className="maplibre-container-wrapper" style={{ width: '100%', height: '100%', position: 'relative' }}>
