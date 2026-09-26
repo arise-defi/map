@@ -30,6 +30,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
     indiaMode,
     footprints,
     selectedFootprintId,
+    selectedStoryIndex,
     visualSettings,
     searchQuery,
     filterCategory,
@@ -42,6 +43,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
     setDetectionMode,
     setDetectionEngine,
     setSelectedFootprintId,
+    setSelectedStoryIndex,
     setVisualSettings,
     setSearchQuery,
     setFilterCategory,
@@ -64,6 +66,11 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
   const metrics = useMemo(() => {
     return computeBuildingMetrics(footprints, lastDetectedBounds);
   }, [footprints, lastDetectedBounds]);
+
+  const selectedBuilding = useMemo(() => {
+    if (!selectedFootprintId) return null;
+    return footprints.find((f) => f.id === selectedFootprintId) || null;
+  }, [footprints, selectedFootprintId]);
 
   const filteredFootprints = useMemo(() => {
     let list = [...footprints];
@@ -412,6 +419,55 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
           </div>
         )}
 
+        {/* Story/Floor Selector (Visible when a building is selected in 3D mode) */}
+        {visualSettings.show3D && selectedBuilding && (selectedBuilding.estimated_floors || 1) >= 2 && (
+          <div className="bld-story-selector" id="bld-story-selector">
+            <div className="bld-story-header">
+              <span className="icon" style={{ fontSize: 14, color: '#00f0ff' }}>layers</span>
+              <span className="bld-story-title">Select Floor — {selectedBuilding.name || selectedBuilding.id}</span>
+              {selectedStoryIndex && (
+                <button
+                  type="button"
+                  className="bld-story-clear-btn"
+                  onClick={() => setSelectedStoryIndex(null)}
+                  title="Clear floor selection (show whole building)"
+                >
+                  <span className="icon" style={{ fontSize: 13 }}>close</span>
+                </button>
+              )}
+            </div>
+            <div className="bld-story-floors">
+              {Array.from({ length: Math.min(10, selectedBuilding.estimated_floors || 1) }, (_, i) => {
+                const floorNum = i + 1;
+                const isActive = selectedStoryIndex === floorNum;
+                const floorLabel = floorNum === 1 ? 'G' : `${floorNum - 1}F`;
+                return (
+                  <button
+                    key={floorNum}
+                    type="button"
+                    className={`bld-story-floor-btn ${isActive ? 'active' : ''}`}
+                    onClick={() => setSelectedStoryIndex(isActive ? null : floorNum)}
+                    title={`${isActive ? 'Deselect' : 'Select'} Floor ${floorNum} (${floorLabel})`}
+                  >
+                    <span className="bld-story-floor-num">{floorLabel}</span>
+                    <span className="bld-story-floor-sub">Floor {floorNum}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {selectedStoryIndex && (
+              <div className="bld-story-info">
+                <span className="icon" style={{ fontSize: 12, color: '#00f0ff' }}>info</span>
+                <span>
+                  Floor {selectedStoryIndex} of {selectedBuilding.estimated_floors} •{' '}
+                  ~{Math.round((selectedBuilding.area_sqm || 0))} m² per floor •{' '}
+                  ~{Math.round(((selectedBuilding.estimated_height_m || 3.5) / (selectedBuilding.estimated_floors || 1)) * 10) / 10}m height
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
         <button
           type="button"
           id="bld-run-scan-btn"
@@ -743,6 +799,9 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                         <span className="bld-metric-k">Stories:</span>
                         <span className="bld-metric-v">
                           {b.estimated_floors} fl (~{b.estimated_height_m}m)
+                          {isSelected && selectedStoryIndex && (
+                            <span className="bld-story-indicator"> • Floor {selectedStoryIndex} selected</span>
+                          )}
                         </span>
                       </div>
                       <div className="bld-metric-item">

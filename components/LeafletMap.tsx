@@ -545,7 +545,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const {
     footprints: bldFootprints,
     selectedFootprintId: bldSelectedId,
+    selectedStoryIndex: bldSelectedStory,
     setSelectedFootprintId: setBldSelectedId,
+    setSelectedStoryIndex: setBldSelectedStory,
     visualSettings: bldVisual,
     detectionMode: bldDetectionMode,
     setRoiBox,
@@ -647,6 +649,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     bldFootprints.forEach((b) => {
       const isSelected = bldSelectedId === b.id;
       const groundCoords: [number, number][] = b.polygon.map(([lon, lat]) => [lat, lon]);
+      const hasStorySelection = isSelected && bldSelectedStory !== null && bldSelectedStory >= 1 && bldSelectedStory <= (b.estimated_floors || 1);
 
       if (is3D) {
         const heightScale = bldVisual.heightScale || 1.5;
@@ -669,6 +672,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         });
         group.addLayer(groundPoly);
 
+        const totalFloors = Math.min(10, b.estimated_floors || 1);
+
         // Wall quadrilaterals with directional facet shading
         for (let i = 0; i < groundCoords.length - 1; i++) {
           const g1 = groundCoords[i];
@@ -680,48 +685,106 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           const dLng = g2[1] - g1[1];
           const dLat = g2[0] - g1[0];
           const wallAngle = (Math.atan2(dLat, dLng) * 180) / Math.PI;
-
           const isSunlit = wallAngle > -45 && wallAngle < 135;
-          const wallFillOp = isSelected
-            ? 0.75
-            : isSunlit
-            ? Math.min(0.65, fillOp + 0.28)
-            : Math.min(0.85, fillOp + 0.45);
 
-          const wallCol = isSelected ? '#ffd700' : strokeCol;
+          // Per-story rendering: split wall face into individual floor quads
+          if (hasStorySelection && totalFloors >= 2) {
+            for (let fl = 0; fl < totalFloors; fl++) {
+              const floorNum = fl + 1; // 1-indexed
+              const fracBottom = fl / totalFloors;
+              const fracTop = (fl + 1) / totalFloors;
 
-          const wallPoly = L.polygon([g1, g2, r2, r1], {
-            color: isSelected ? '#ffd700' : strokeCol,
-            weight: 1,
-            fillColor: wallCol,
-            fillOpacity: wallFillOp,
-            interactive: false,
-          });
-          group.addLayer(wallPoly);
+              const fb1: [number, number] = [g1[0] + (r1[0] - g1[0]) * fracBottom, g1[1] + (r1[1] - g1[1]) * fracBottom];
+              const fb2: [number, number] = [g2[0] + (r2[0] - g2[0]) * fracBottom, g2[1] + (r2[1] - g2[1]) * fracBottom];
+              const ft1: [number, number] = [g1[0] + (r1[0] - g1[0]) * fracTop, g1[1] + (r1[1] - g1[1]) * fracTop];
+              const ft2: [number, number] = [g2[0] + (r2[0] - g2[0]) * fracTop, g2[1] + (r2[1] - g2[1]) * fracTop];
 
-          // Floor banding lines for multi-story buildings (G+2 or higher)
-          if (bldVisual.showFloorBands && (b.estimated_floors || 1) >= 2) {
-            const floors = Math.min(10, b.estimated_floors || 2);
-            for (let fl = 1; fl < floors; fl++) {
-              const frac = fl / floors;
-              const f1: [number, number] = [g1[0] + (r1[0] - g1[0]) * frac, g1[1] + (r1[1] - g1[1]) * frac];
-              const f2: [number, number] = [g2[0] + (r2[0] - g2[0]) * frac, g2[1] + (r2[1] - g2[1]) * frac];
-              const bandLine = L.polyline([f1, f2], {
-                color: isSelected ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.25)',
-                weight: 1,
+              const isFloorSelected = floorNum === bldSelectedStory;
+
+              const floorWallCol = isFloorSelected ? '#00f0ff' : '#ffd700';
+              const floorWallOp = isFloorSelected ? 0.92 : (isSunlit ? 0.30 : 0.42);
+              const floorBorderCol = isFloorSelected ? '#ffffff' : '#ffd700';
+              const floorBorderW = isFloorSelected ? 2 : 0.5;
+
+              const floorPoly = L.polygon([fb1, fb2, ft2, ft1], {
+                color: floorBorderCol,
+                weight: floorBorderW,
+                fillColor: floorWallCol,
+                fillOpacity: floorWallOp,
+                interactive: false,
+                className: isFloorSelected ? 'bld-story-selected-wall' : '',
+              });
+              group.addLayer(floorPoly);
+
+              // Thicker floor separator bands
+              if (fl > 0) {
+                const bandLine = L.polyline([fb1, fb2], {
+                  color: isFloorSelected || (fl === (bldSelectedStory || 0)) ? 'rgba(0, 240, 255, 0.9)' : 'rgba(255, 255, 255, 0.45)',
+                  weight: isFloorSelected ? 2.5 : 1,
+                  interactive: false,
+                });
+                group.addLayer(bandLine);
+              }
+            }
+
+            // Add a floor-number label on the selected story
+            if (i === 0 && bldSelectedStory) {
+              const fracMid = (bldSelectedStory - 0.5) / totalFloors;
+              const labelLat = g1[0] + (r1[0] - g1[0]) * fracMid;
+              const labelLng = g1[1] + (r1[1] - g1[1]) * fracMid;
+              const floorLabel = L.divIcon({
+                className: 'bld-story-label-marker',
+                html: `<div class="bld-story-map-label">Floor ${bldSelectedStory}</div>`,
+              });
+              const floorMarker = L.marker([labelLat, labelLng], {
+                icon: floorLabel,
                 interactive: false,
               });
-              group.addLayer(bandLine);
+              group.addLayer(floorMarker);
+            }
+          } else {
+            // Standard wall rendering (no story selection or single floor)
+            const wallFillOp = isSelected
+              ? 0.75
+              : isSunlit
+              ? Math.min(0.65, fillOp + 0.28)
+              : Math.min(0.85, fillOp + 0.45);
+
+            const wallCol = isSelected ? '#ffd700' : strokeCol;
+
+            const wallPoly = L.polygon([g1, g2, r2, r1], {
+              color: isSelected ? '#ffd700' : strokeCol,
+              weight: 1,
+              fillColor: wallCol,
+              fillOpacity: wallFillOp,
+              interactive: false,
+            });
+            group.addLayer(wallPoly);
+
+            // Floor banding lines for multi-story buildings (G+2 or higher)
+            if (bldVisual.showFloorBands && (b.estimated_floors || 1) >= 2) {
+              const floors = Math.min(10, b.estimated_floors || 2);
+              for (let fl = 1; fl < floors; fl++) {
+                const frac = fl / floors;
+                const f1: [number, number] = [g1[0] + (r1[0] - g1[0]) * frac, g1[1] + (r1[1] - g1[1]) * frac];
+                const f2: [number, number] = [g2[0] + (r2[0] - g2[0]) * frac, g2[1] + (r2[1] - g2[1]) * frac];
+                const bandLine = L.polyline([f1, f2], {
+                  color: isSelected ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.25)',
+                  weight: 1,
+                  interactive: false,
+                });
+                group.addLayer(bandLine);
+              }
             }
           }
         }
 
         // Elevated Roof polygon
         const roofPoly = L.polygon(roofCoords, {
-          color: isSelected ? '#ffffff' : strokeCol,
+          color: isSelected ? (hasStorySelection ? '#00f0ff' : '#ffffff') : strokeCol,
           weight: isSelected ? 3.5 : strokeW,
-          fillColor: isSelected ? '#ffd700' : strokeCol,
-          fillOpacity: isSelected ? 0.80 : Math.max(0.40, fillOp + 0.25),
+          fillColor: isSelected ? (hasStorySelection ? '#00899b' : '#ffd700') : strokeCol,
+          fillOpacity: isSelected ? (hasStorySelection ? 0.55 : 0.80) : Math.max(0.40, fillOp + 0.25),
         });
 
         bindFootprintEvents(roofPoly, b, isSelected);
@@ -764,6 +827,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     });
 
     function bindFootprintEvents(layer: L.Polygon, b: typeof bldFootprints[0], isSelected: boolean) {
+      const storyLine = isSelected && bldSelectedStory
+        ? `<div class="bld-tt-row" style="color: #00f0ff;"><span>Selected Floor:</span> <strong>Floor ${bldSelectedStory} of ${b.estimated_floors}</strong></div>`
+        : '';
+
       layer.bindTooltip(
         `
         <div class="bld-map-tooltip">
@@ -780,6 +847,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
             <span>Stories:</span>
             <strong>~${b.estimated_height_m}m (${b.estimated_floors} fl)</strong>
           </div>
+          ${storyLine}
           ${b.orientation_deg ? `<div class="bld-tt-row"><span>Orientation:</span> <strong>${b.orientation_deg}°</strong></div>` : ''}
           ${b.roof_material ? `<div class="bld-tt-row"><span>Roof:</span> <strong>${b.roof_material}</strong></div>` : ''}
           ${b.has_mumty_tank ? `<div class="bld-tt-row" style="color: #38bdf8;"><span>Feature:</span> <strong>🚰 Tank / Mumty</strong></div>` : ''}
@@ -797,7 +865,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         setBldSelectedId(b.id);
       });
     }
-  }, [bldFootprints, bldSelectedId, bldVisual, setBldSelectedId]);
+  }, [bldFootprints, bldSelectedId, bldSelectedStory, bldVisual, setBldSelectedId]);
 
   // Render Road Footprints (Polylines with classification-based styling)
   const {

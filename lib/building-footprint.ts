@@ -181,6 +181,7 @@ interface BuildingFootprintState {
   roiBox: BoundingBox | null;
   footprints: BuildingFootprint[];
   selectedFootprintId: string | null;
+  selectedStoryIndex: number | null; // 1-indexed floor number of selected building (null = whole building)
   visualSettings: VisualSettings;
   searchQuery: string;
   filterCategory: string;
@@ -199,6 +200,7 @@ interface BuildingFootprintState {
   setDetectionEngine: (engine: DetectionEngine) => void;
   setRoiBox: (box: BoundingBox | null) => void;
   setSelectedFootprintId: (id: string | null) => void;
+  setSelectedStoryIndex: (index: number | null) => void;
   setCurrentMapBounds: (bounds: BoundingBox | null) => void;
   setVisualSettings: (settings: Partial<VisualSettings>) => void;
   setSearchQuery: (query: string) => void;
@@ -1393,6 +1395,7 @@ export const useBuildingFootprintStore = create<BuildingFootprintState>((set, ge
   roiBox: null,
   footprints: [],
   selectedFootprintId: null,
+  selectedStoryIndex: null,
   visualSettings: {
     strokeColor: '#ef4444', // AI Cadastral Red (Matches user reference image)
     strokeWeight: 1.8,
@@ -1422,7 +1425,11 @@ export const useBuildingFootprintStore = create<BuildingFootprintState>((set, ge
   setDetectionMode: (mode) => set({ detectionMode: mode }),
   setDetectionEngine: (engine) => set({ detectionEngine: engine }),
   setRoiBox: (box) => set({ roiBox: box }),
-  setSelectedFootprintId: (id) => set({ selectedFootprintId: id }),
+  setSelectedFootprintId: (id) => set((s) => ({
+    selectedFootprintId: id,
+    selectedStoryIndex: id !== s.selectedFootprintId ? null : s.selectedStoryIndex,
+  })),
+  setSelectedStoryIndex: (index) => set({ selectedStoryIndex: index }),
   setCurrentMapBounds: (bounds) => set({ currentMapBounds: bounds }),
   setVisualSettings: (settings) =>
     set((s) => ({ visualSettings: { ...s.visualSettings, ...settings } })),
@@ -1469,6 +1476,7 @@ export const useBuildingFootprintStore = create<BuildingFootprintState>((set, ge
     set({
       footprints: [],
       selectedFootprintId: null,
+      selectedStoryIndex: null,
       roiBox: null,
       detectionError: null,
     }),
