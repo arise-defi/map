@@ -701,10 +701,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
               const isFloorSelected = floorNum === bldSelectedStory;
 
-              const floorWallCol = isFloorSelected ? '#00f0ff' : '#ffd700';
-              const floorWallOp = isFloorSelected ? 0.92 : (isSunlit ? 0.30 : 0.42);
-              const floorBorderCol = isFloorSelected ? '#ffffff' : '#ffd700';
-              const floorBorderW = isFloorSelected ? 2 : 0.5;
+              const floorWallCol = isFloorSelected ? '#ff3366' : '#ffe066';
+              const floorWallOp = isFloorSelected ? 0.88 : (isSunlit ? 0.32 : 0.45);
+              const floorBorderCol = isFloorSelected ? '#ffffff' : 'rgba(255, 215, 0, 0.5)';
+              const floorBorderW = isFloorSelected ? 2.5 : 0.5;
 
               const floorPoly = L.polygon([fb1, fb2, ft2, ft1], {
                 color: floorBorderCol,
@@ -719,7 +719,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               // Thicker floor separator bands
               if (fl > 0) {
                 const bandLine = L.polyline([fb1, fb2], {
-                  color: isFloorSelected || (fl === (bldSelectedStory || 0)) ? 'rgba(0, 240, 255, 0.9)' : 'rgba(255, 255, 255, 0.45)',
+                  color: isFloorSelected || (fl === (bldSelectedStory || 0)) ? 'rgba(255, 51, 102, 0.9)' : 'rgba(255, 255, 255, 0.4)',
                   weight: isFloorSelected ? 2.5 : 1,
                   interactive: false,
                 });
@@ -781,10 +781,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
         // Elevated Roof polygon
         const roofPoly = L.polygon(roofCoords, {
-          color: isSelected ? (hasStorySelection ? '#00f0ff' : '#ffffff') : strokeCol,
+          color: isSelected ? '#ffffff' : strokeCol,
           weight: isSelected ? 3.5 : strokeW,
-          fillColor: isSelected ? (hasStorySelection ? '#00899b' : '#ffd700') : strokeCol,
-          fillOpacity: isSelected ? (hasStorySelection ? 0.55 : 0.80) : Math.max(0.40, fillOp + 0.25),
+          fillColor: isSelected ? '#ffe066' : strokeCol,
+          fillOpacity: isSelected ? (hasStorySelection ? 0.65 : 0.80) : Math.max(0.40, fillOp + 0.25),
         });
 
         bindFootprintEvents(roofPoly, b, isSelected);
