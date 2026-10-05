@@ -1,0 +1,349 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "title": "Ground-Truth LiDAR 3D & 2D Building Footprints",
+    "source_file": "Sample.las",
+    "crs": "EPSG:4326 (reprojected from EPSG:32646 UTM Zone 46N)",
+    "building_count": 6,
+    "median_ground_z_m": 22.14,
+    "generated_at": "2026-10-01"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "bld-lidar-1-north-green",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              91.2700683,
+              23.8124598
+            ],
+            [
+              91.2702346,
+              23.8124722
+            ],
+            [
+              91.2702448,
+              23.8123753
+            ],
+            [
+              91.2700797,
+              23.8123605
+            ],
+            [
+              91.2700683,
+              23.8124598
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "bld-lidar-1-north-green",
+        "name": "North Green Gable Factory",
+        "classification": "Industrial",
+        "source": "lidar-pointcloud",
+        "confidence": 1.0,
+        "estimated_height_m": 6.72,
+        "ground_z_m": 22.14,
+        "roof_z_m": 28.86,
+        "estimated_floors": 2,
+        "area_sqm": 185.1,
+        "area_sqft": 1992.4,
+        "area_gaj": 221.4,
+        "perimeter_m": 55.7,
+        "orientation_deg": 3.9,
+        "roof_material": "Corrugated Tin Sheet",
+        "has_mumty_tank": false,
+        "lidar_point_count": 29224,
+        "color": "#22c55e",
+        "isBuilding": true,
+        "center": [
+          91.2701568,
+          23.8124169
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bld-lidar-2-mid-rust",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              91.2700941,
+              23.8123338
+            ],
+            [
+              91.270263,
+              23.8123415
+            ],
+            [
+              91.2702696,
+              23.8122282
+            ],
+            [
+              91.2701019,
+              23.8122205
+            ],
+            [
+              91.2700941,
+              23.8123338
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "bld-lidar-2-mid-rust",
+        "name": "Central Rust Workshop",
+        "classification": "Industrial",
+        "source": "lidar-pointcloud",
+        "confidence": 1.0,
+        "estimated_height_m": 7.82,
+        "ground_z_m": 22.14,
+        "roof_z_m": 29.96,
+        "estimated_floors": 2,
+        "area_sqm": 215.9,
+        "area_sqft": 2323.9,
+        "area_gaj": 258.2,
+        "perimeter_m": 59.5,
+        "orientation_deg": 2.2,
+        "roof_material": "Corrugated Tin Sheet",
+        "has_mumty_tank": false,
+        "lidar_point_count": 34470,
+        "color": "#f97316",
+        "isBuilding": true,
+        "center": [
+          91.2701822,
+          23.812281
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bld-lidar-3-mid-shed",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              91.2701203,
+              23.8121751
+            ],
+            [
+              91.2702789,
+              23.8121991
+            ],
+            [
+              91.270289,
+              23.8121091
+            ],
+            [
+              91.2701328,
+              23.8121004
+            ],
+            [
+              91.2701203,
+              23.8121751
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "bld-lidar-3-mid-shed",
+        "name": "Central Storage Shed",
+        "classification": "Industrial",
+        "source": "lidar-pointcloud",
+        "confidence": 1.0,
+        "estimated_height_m": 6.55,
+        "ground_z_m": 22.14,
+        "roof_z_m": 28.69,
+        "estimated_floors": 2,
+        "area_sqm": 148.3,
+        "area_sqft": 1596.3,
+        "area_gaj": 177.4,
+        "perimeter_m": 50.7,
+        "orientation_deg": 8.6,
+        "roof_material": "Corrugated Tin Sheet",
+        "has_mumty_tank": false,
+        "lidar_point_count": 24187,
+        "color": "#06b6d4",
+        "isBuilding": true,
+        "center": [
+          91.2702052,
+          23.8121459
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bld-lidar-4-south-warehouse",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              91.2701342,
+              23.8120887
+            ],
+            [
+              91.2702979,
+              23.8121069
+            ],
+            [
+              91.2703462,
+              23.8118151
+            ],
+            [
+              91.2701839,
+              23.8117922
+            ],
+            [
+              91.2701342,
+              23.8120887
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "bld-lidar-4-south-warehouse",
+        "name": "South Industrial Warehouse Complex",
+        "classification": "Industrial",
+        "source": "lidar-pointcloud",
+        "confidence": 1.0,
+        "estimated_height_m": 17.59,
+        "ground_z_m": 22.14,
+        "roof_z_m": 39.73,
+        "estimated_floors": 5,
+        "area_sqm": 552.6,
+        "area_sqft": 5948.1,
+        "area_gaj": 660.9,
+        "perimeter_m": 99.5,
+        "orientation_deg": 6.2,
+        "roof_material": "Corrugated Tin Sheet",
+        "has_mumty_tank": false,
+        "lidar_point_count": 88916,
+        "color": "#a855f7",
+        "isBuilding": true,
+        "center": [
+          91.2702405,
+          23.8119507
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bld-lidar-5-mumty-tank",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              91.2701922,
+              23.8118344
+            ],
+            [
+              91.2702557,
+              23.8118398
+            ],
+            [
+              91.2702613,
+              23.8118001
+            ],
+            [
+              91.2701978,
+              23.8117947
+            ],
+            [
+              91.2701922,
+              23.8118344
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "bld-lidar-5-mumty-tank",
+        "name": "South Rooftop Stair Mumty & Water Tanks",
+        "classification": "Civic",
+        "source": "lidar-pointcloud",
+        "confidence": 1.0,
+        "estimated_height_m": 18.19,
+        "ground_z_m": 22.14,
+        "roof_z_m": 40.33,
+        "estimated_floors": 1,
+        "area_sqm": 28.8,
+        "area_sqft": 310.0,
+        "area_gaj": 34.4,
+        "perimeter_m": 21.9,
+        "orientation_deg": 4.6,
+        "roof_material": "RCC Concrete",
+        "has_mumty_tank": true,
+        "lidar_point_count": 2359,
+        "color": "#ef4444",
+        "isBuilding": true,
+        "center": [
+          91.2702267,
+          23.8118173
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bld-lidar-6-east-outbuilding",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              91.2703369,
+              23.8119483
+            ],
+            [
+              91.2703826,
+              23.8119488
+            ],
+            [
+              91.2703843,
+              23.8118202
+            ],
+            [
+              91.2703411,
+              23.8118197
+            ],
+            [
+              91.2703369,
+              23.8119483
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "id": "bld-lidar-6-east-outbuilding",
+        "name": "East Perimeter Outbuilding / Gatehouse",
+        "classification": "Outbuilding",
+        "source": "lidar-pointcloud",
+        "confidence": 1.0,
+        "estimated_height_m": 15.18,
+        "ground_z_m": 22.14,
+        "roof_z_m": 37.32,
+        "estimated_floors": 1,
+        "area_sqm": 64.6,
+        "area_sqft": 695.3,
+        "area_gaj": 77.3,
+        "perimeter_m": 37.6,
+        "orientation_deg": 0.0,
+        "roof_material": "Corrugated Tin Sheet",
+        "has_mumty_tank": false,
+        "lidar_point_count": 9096,
+        "color": "#eab308",
+        "isBuilding": true,
+        "center": [
+          91.2703612,
+          23.8118843
+        ]
+      }
+    }
+  ]
+}

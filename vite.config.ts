@@ -11,9 +11,9 @@ import { execSync } from 'child_process';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   
-  // Default to the local Cloud Run developer proxy (http://127.0.0.1:8080)
+  // Default to the local Express server proxy (http://127.0.0.1:3000)
   // But allow overriding it in .env if needed.
-  const target = env.PROXY_TARGET || 'http://127.0.0.1:8080';
+  const target = env.PROXY_TARGET || 'http://127.0.0.1:3000';
   const isLocalProxy = target.includes('127.0.0.1') || target.includes('localhost');
 
   let idToken = env.CLOUD_RUN_ID_TOKEN || env.VITE_CLOUD_RUN_ID_TOKEN || '';

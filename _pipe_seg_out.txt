@@ -1,0 +1,62 @@
+﻿python.exe : Warning: You are sending unauthenticated requests to 
+the HF Hub. Please set a HF_TOKEN to enable higher rate limits and 
+faster downloads.
+At line:1 char:1
++ & "C:\Users\vinod\AppData\Local\Programs\Python\Python312\python.
+exe" ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo          : NotSpecified: (Warning: You ar...ste 
+   r downloads.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[*] loading nvidia/segformer-b0-finetuned-ade-512-512 ...
+
+Loading weights:   0%|          | 0/208 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 208/208 [00:00<00:00, 
+6490.65it/s]
+[*] Test.tif 1276x3141, GSD 0.0259 m/px
+[semantic] prior DISCARDED: 77% of the frame is building-class while only 3% is road-class - it does not separate roofs from ground here
+[semantic] nature veto 10.1% of pixels (blanket ExG would be 20.0%)
+[*] SegFormer prior in use: OFF (tile scale 1/3)
+[optical] gate 59.5% of frame, seeds 61.0% (rib close 23 px = 0.6 m), grow cap 96 px (2.5 m), strip veto 309 px wide / 463 px long
+[*] optical instances: 78, semantic instances: 0
+[*] area filter: 5962..1402770 px (4.0 m2 min)
+[*] dominant street angle: 82.5
+
+=== 22 building footprints (SegFormer+Optical) ===
+  #1:     56.4 m2  centroid=(402,408) bbox=(110,288,584,240) rect=0.89 aspect=3.4 road=0.00 build=0.00 nature=0.01 src=optical conf=0.71
+  #2:     22.6 m2  centroid=(205,239) bbox=(88,141,236,198) rect=0.92 aspect=1.3 road=0.00 build=0.00 nature=0.02 src=optical conf=0.71
+  #3:     36.0 m2  centroid=(469,198) bbox=(279,89,381,219) rect=0.87 aspect=2.1 road=0.00 build=0.00 nature=0.01 src=optical conf=0.7
+  #4:     13.4 m2  centroid=(538,52) bbox=(407,-16,262,138) rect=0.76 aspect=2.4 road=0.00 build=0.00 nature=0.01 src=optical conf=0.69
+  #5:      6.0 m2  centroid=(1218,916) bbox=(1170,841,97,151) rect=0.81 aspect=1.8 road=0.00 build=0.00 nature=0.00 src=optical conf=0.69
+  #6:      5.5 m2  centroid=(1036,215) bbox=(998,102,78,227) rect=0.76 aspect=4.6 road=0.00 build=0.00 nature=0.01 src=optical conf=0.69
+  #7:     19.4 m2  centroid=(132,77) bbox=(0,0,266,155) rect=0.71 aspect=1.7 road=0.00 build=0.00 nature=0.01 src=optical conf=0.68
+  #8:      4.1 m2  centroid=(1239,774) bbox=(1194,722,82,105) rect=0.72 aspect=1.1 road=0.00 build=0.00 nature=0.00 src=optical conf=0.68
+  #9:    214.6 m2  centroid=(768,2581) bbox=(396,2231,696,759) rect=0.66 aspect=1.0 road=0.00 build=0.00 nature=0.00 src=optical conf=0.67
+  #10:    197.1 m2  centroid=(655,1386) bbox=(260,1085,717,631) rect=0.67 aspect=1.2 road=0.00 build=0.00 nature=0.02 src=optical conf=0.67
+  #11:    117.5 m2  centroid=(655,1917) bbox=(323,1713,663,409) rect=0.65 aspect=1.6 road=0.00 build=0.00 nature=0.00 src=optical conf=0.67
+  #12:     56.3 m2  centroid=(625,726) bbox=(409,530,440,323) rect=0.67 aspect=1.1 road=0.00 build=0.00 nature=0.00 src=optical conf=0.67
+  #13:     55.8 m2  centroid=(540,2212) bbox=(362,2047,352,343) rect=0.70 aspect=1.0 road=0.00 build=0.00 nature=0.00 src=optical conf=0.67
+  #14:     55.7 m2  centroid=(841,2156) bbox=(667,1968,360,343) rect=0.68 aspect=1.1 road=0.00 build=0.00 nature=0.00 src=optical conf=0.67
+  #15:     29.9 m2  centroid=(381,922) bbox=(281,752,201,340) rect=0.66 aspect=1.7 road=0.00 build=0.00 nature=0.01 src=optical conf=0.67
+  #16:     19.8 m2  centroid=(569,948) bbox=(473,828,192,239) rect=0.66 aspect=1.3 road=0.00 build=0.00 nature=0.00 src=optical conf=0.67
+  #17:      5.9 m2  centroid=(1156,821) bbox=(1102,758,113,122) rect=0.66 aspect=1.1 road=0.00 build=0.00 nature=0.01 src=optical conf=0.67
+  #18:      4.0 m2  centroid=(1194,233) bbox=(1153,184,89,104) rect=0.69 aspect=1.1 road=0.00 build=0.00 nature=0.00 src=optical conf=0.67
+  #19:     27.4 m2  centroid=(733,944) bbox=(594,833,278,224) rect=0.62 aspect=1.2 road=0.00 build=0.00 nature=0.00 src=optical conf=0.66
+  #20:      8.5 m2  centroid=(334,64) bbox=(254,0,160,130) rect=0.62 aspect=1.2 road=0.00 build=0.00 nature=0.00 src=optical conf=0.66
+  #21:      6.8 m2  centroid=(83,406) bbox=(41,287,90,228) rect=0.61 aspect=3.2 road=0.00 build=0.00 nature=0.16 src=optical conf=0.66
+  #22:      7.7 m2  centroid=(952,2849) bbox=(851,2782,208,134) rect=0.48 aspect=2.0 road=0.00 build=0.00 nature=0.00 src=optical conf=0.63
+  total roof area: 970.5 m2
+
+=== coverage of measured surface patches ===
+  [ROOF] green roof          72.7%
+  [ROOF] rust roof           78.0%
+  [ROOF] dark green roof     98.2%
+  [ROOF] gray roof           74.5%
+  [bg  ] road (right)         8.4%
+  [bg  ] dirt yard            0.0%
+  [bg  ] dirt left strip      0.0%
+  [bg  ] trees                0.0%
+[+] wrote c:\Users\vinod\Desktop\map\map\_overlay_segformer.png
+[+] wrote c:\Users\vinod\Desktop\map\map\_overlay_segformer_small.png

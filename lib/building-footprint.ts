@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useCustomDataStore } from './custom-data';
 
 export interface BuildingFootprint {
   id: string;
@@ -25,7 +26,7 @@ export interface BuildingFootprint {
   has_mumty_tank?: boolean; // Detected overhead water tank / stair mumty
   tags?: Record<string, string>;
   name?: string;
-  source: 'cv-optical' | 'osm-gis' | 'colab-neural' | 'overture-ml';
+  source: 'cv-optical' | 'osm-gis' | 'colab-neural' | 'overture-ml' | 'florence2-neural' | 'custom-raster';
 }
 
 export interface BuildingMetrics {
@@ -61,7 +62,7 @@ export interface BoundingBox {
 }
 
 export type DetectionMode = 'viewport' | 'roi-box' | 'point-tap';
-export type DetectionEngine = 'hybrid' | 'cv-optical' | 'osm-gis' | 'colab-neural' | 'overture-ml';
+export type DetectionEngine = 'hybrid' | 'cv-optical' | 'osm-gis' | 'colab-neural' | 'overture-ml' | 'florence2-neural';
 export type GeometryMode = 'obb' | 'contour' | 'hybrid';
 export type DetectionDensity = 'ultra-dense' | 'standard';
 
@@ -90,6 +91,16 @@ export interface IndiaCityPreset {
 }
 
 export const INDIA_CITY_PRESETS: IndiaCityPreset[] = [
+  {
+    id: 'tripura-lidar',
+    name: 'Tripura LiDAR Industrial Site (Sample.las)',
+    city: 'Agartala',
+    state: 'Tripura',
+    lat: 23.81212,
+    lng: 91.27022,
+    zoom: 19,
+    description: 'Ground-truth airborne LiDAR site (Sample.las / Sample.copc.laz / Test.tif) with verified 3D building heights',
+  },
   {
     id: 'blr-koramangala',
     name: 'Koramangala 4th Block',
@@ -1216,20 +1227,124 @@ out geom qt;`;
 }
 
 // ---------------------------------------------------------------------------
+// Florence-2-base Neural Building Footprint Detection
+// Calls the Colab server's /api/florence2/detect-buildings endpoint.
+// Returns precise polygon footprints with area, floor estimation, and classification.
+// ---------------------------------------------------------------------------
+
+async function fetchFlorence2Footprints(bounds: BoundingBox, zoom: number = 18, indiaMode: boolean = true): Promise<BuildingFootprint[]> {
+  // Get the Colab URL from localStorage (same as Earth AI panel)
+  const colabUrl = typeof window !== 'undefined' ? localStorage.getItem('colab_ai_url') || '' : '';
+  if (!colabUrl) {
+    console.warn('[Florence2] No Colab URL configured. Set it in Earth AI panel.');
+    return [];
+  }
+
+  const centerLat = (bounds.south + bounds.north) / 2;
+  const centerLon = (bounds.west + bounds.east) / 2;
+  const reqUrl = `${colabUrl}/api/florence2/detect-buildings?lat=${centerLat}&lon=${centerLon}&zoom=${zoom}&grid_size=2&use_segmentation=true`;
+
+  let data: any = null;
+
+  // Direct attempt
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 25000); // Florence-2 needs more time
+    const res = await fetch(reqUrl, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      data = await res.json();
+    }
+  } catch {
+    // Try proxy fallback
+  }
+
+  // Proxy fallback
+  if (!data) {
+    try {
+      const proxyUrl = `/api/earth-ai/proxy?url=${encodeURIComponent(reqUrl)}`;
+      const res = await fetch(proxyUrl, {
+        method: 'GET',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (res.ok) {
+        data = await res.json();
+      }
+    } catch {
+      console.warn('[Florence2] Proxy fallback also failed.');
+    }
+  }
+
+  if (!data || data.status !== 'success' || !data.geojson?.features) {
+    console.warn('[Florence2] No valid response from Florence-2 endpoint.');
+    return [];
+  }
+
+  const results: BuildingFootprint[] = [];
+  const refLat = (bounds.south + bounds.north) / 2;
+  const inIndia = indiaMode || isLocationInIndia(refLat, (bounds.west + bounds.east) / 2);
+
+  data.geojson.features.forEach((feature: any, idx: number) => {
+    if (!feature.geometry || feature.geometry.type !== 'Polygon') return;
+    const coordRing = feature.geometry.coordinates?.[0];
+    if (!coordRing || coordRing.length < 4) return;
+
+    const coords: [number, number][] = coordRing.map((c: number[]) => [c[0], c[1]] as [number, number]);
+    const props = feature.properties || {};
+    const areaSqm = props.area_sqm || calculatePolygonAreaSqm(coords, refLat);
+    if (areaSqm < (inIndia ? 8.0 : 12.0)) return;
+
+    const perimeterM = calculatePolygonPerimeterM(coords, refLat);
+    const centroid: [number, number] = props.center
+      ? [props.center[0], props.center[1]]
+      : calculateCentroid(coords);
+
+    const classification = (props.subcategory || 'Independent House') as BuildingFootprint['classification'];
+    const estimatedFloors = props.estimated_floors || 2;
+    const estimatedHeight = props.estimated_height_m || (estimatedFloors * 3.2);
+
+    results.push({
+      id: props.id || `bld-f2-${idx + 1}`,
+      polygon: coords,
+      area_sqm: Math.round(areaSqm * 10) / 10,
+      area_sqft: Math.round(areaSqm * 10.7639),
+      area_gaj: sqmToGaj(areaSqm),
+      perimeter_m: Math.round(perimeterM * 10) / 10,
+      estimated_height_m: estimatedHeight,
+      estimated_floors: estimatedFloors,
+      classification,
+      confidence: props.confidence || 0.92,
+      centroid: [Math.round(centroid[0] * 1e7) / 1e7, Math.round(centroid[1] * 1e7) / 1e7],
+      orientation_deg: props.angle_deg || 0,
+      source: 'florence2-neural',
+    });
+  });
+
+  console.log(`[Florence2] Received ${results.length} building footprints from Florence-2-base.`);
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // Smart Precision Merger: Combines Multiple Sources by Priority
-// Priority: Precise Polygon (OSM/ML) > CV Rectangle
+// Priority: Florence-2/ML Polygon > OSM Polygon > CV Rectangle
 // Never replaces a hand-traced polygon with a crude CV bounding box
 // ---------------------------------------------------------------------------
 
 function mergeFootprints(
   gisFootprints: BuildingFootprint[],
   cvFootprints: BuildingFootprint[],
-  mlFootprints: BuildingFootprint[] = []
+  mlFootprints: BuildingFootprint[] = [],
+  florence2Footprints: BuildingFootprint[] = [],
+  customRasterFootprints: BuildingFootprint[] = []
 ): BuildingFootprint[] {
-  // Start with the highest-precision sources: ML and OSM (precise polygons)
-  const preciseFootprints = [...mlFootprints, ...gisFootprints];
+  // Start with the highest-precision sources: Custom GeoTIFF Raster, Florence-2, ML, and OSM (precise polygons)
+  const preciseFootprints = [...customRasterFootprints, ...florence2Footprints, ...mlFootprints, ...gisFootprints];
 
-  // Deduplicate precise footprints (ML and OSM may overlap)
+  // Deduplicate precise footprints (ML, OSM, and Custom may overlap)
   const deduped: BuildingFootprint[] = [];
   const usedCentroids = new Set<string>();
 
@@ -1267,7 +1382,7 @@ function mergeFootprints(
     return cvFootprints;
   }
 
-  console.log(`[SmartMerger] Precise: ${preciseFootprints.length} (ML: ${mlFootprints.length}, OSM: ${gisFootprints.length}), CV gap-fill: ${deduped.length - preciseFootprints.length}, Total: ${deduped.length}`);
+  console.log(`[SmartMerger] Precise: ${preciseFootprints.length} (CustomRaster: ${customRasterFootprints.length}, Florence2: ${florence2Footprints.length}, ML: ${mlFootprints.length}, OSM: ${gisFootprints.length}), CV gap-fill: ${deduped.length - preciseFootprints.length}, Total: ${deduped.length}`);
   return deduped;
 }
 
@@ -1489,6 +1604,89 @@ export const useBuildingFootprintStore = create<BuildingFootprintState>((set, ge
     try {
       let results: BuildingFootprint[] = [];
 
+      // Check for custom uploaded raster layers (e.g. Test.tif GeoTIFF) covering the view
+      let customRasterFootprints: BuildingFootprint[] = [];
+      try {
+        const { layers, detectBuildingsOnLayer } = useCustomDataStore.getState();
+        const intersectingRasters = layers.filter(
+          (l) => l.visible && (l.layerType === 'raster' || l.format === 'las' || l.format === 'laz') && l.bounds && (
+            l.bounds.west <= bounds.east && l.bounds.east >= bounds.west &&
+            l.bounds.south <= bounds.north && l.bounds.north >= bounds.south
+          )
+        );
+
+        for (const rLayer of intersectingRasters) {
+          let feats = rLayer.buildingDetections || [];
+          if (feats.length === 0 && rLayer.rasterDataUrl && rLayer.bounds) {
+            await detectBuildingsOnLayer(rLayer.id);
+            feats = useCustomDataStore.getState().layers.find((l) => l.id === rLayer.id)?.buildingDetections || [];
+          }
+          for (const feat of feats) {
+            if (feat.coordinates && feat.coordinates[0]) {
+              const poly = feat.coordinates[0] as [number, number][];
+              customRasterFootprints.push({
+                id: feat.id,
+                name: feat.properties?.name || undefined,
+                classification: (feat.properties?.classification as any) || 'Industrial',
+                confidence: feat.properties?.confidence || 0.95,
+                area_sqm: feat.area_sqm || 0,
+                area_sqft: Math.round((feat.area_sqm || 0) * 10.7639),
+                area_gaj: Math.round((feat.area_sqm || 0) * 1.196 * 10) / 10,
+                perimeter_m: Math.round(Math.sqrt(feat.area_sqm || 10) * 4 * 10) / 10,
+                estimated_floors: feat.estimated_floors || 1,
+                estimated_height_m: feat.estimated_height_m || 3.5,
+                centroid: feat.center || [poly[0][0], poly[0][1]],
+                orientation_deg: 0,
+                polygon: poly,
+                source: 'custom-raster',
+              });
+            }
+          }
+        }
+
+        // Check if view covers Tripura LiDAR site and no custom raster footprints yet found
+        const isTripuraSite =
+          bounds.west <= 91.2705 && bounds.east >= 91.2700 &&
+          bounds.south <= 23.8126 && bounds.north >= 23.8116;
+
+        if (isTripuraSite && customRasterFootprints.length === 0) {
+          try {
+            const lidarRes = await fetch('/api/lidar/detect-buildings');
+            if (lidarRes.ok) {
+              const gj = await lidarRes.json();
+              for (const feat of (gj.features || [])) {
+                if (feat.geometry?.coordinates?.[0]) {
+                  const poly = feat.geometry.coordinates[0] as [number, number][];
+                  const props = feat.properties || {};
+                  customRasterFootprints.push({
+                    id: props.id || feat.id,
+                    name: props.name,
+                    classification: props.classification || 'Industrial',
+                    confidence: 1.0,
+                    area_sqm: props.area_sqm || 0,
+                    area_sqft: props.area_sqft || 0,
+                    area_gaj: props.area_gaj || 0,
+                    perimeter_m: props.perimeter_m || 0,
+                    estimated_floors: props.estimated_floors || 2,
+                    estimated_height_m: props.estimated_height_m || 6.5,
+                    centroid: props.center || [poly[0][0], poly[0][1]],
+                    orientation_deg: props.orientation_deg || 0,
+                    polygon: poly,
+                    roof_material: props.roof_material,
+                    has_mumty_tank: props.has_mumty_tank,
+                    source: 'custom-raster',
+                  });
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('[BuildingFootprint] Auto-fetch of LiDAR footprints failed:', e);
+          }
+        }
+      } catch (customErr) {
+        console.warn('[BuildingFootprint] Custom raster layer check failed:', customErr);
+      }
+
       if (detectionEngine === 'osm-gis') {
         results = await fetchOSMBuildingFootprints(bounds, indiaMode);
         console.log(`[DetectEngine:osm-gis] ${results.length} precise polygons`);
@@ -1498,15 +1696,24 @@ export const useBuildingFootprintStore = create<BuildingFootprintState>((set, ge
       } else if (detectionEngine === 'overture-ml') {
         results = await fetchOvertureMLFootprints(bounds, indiaMode);
         console.log(`[DetectEngine:overture-ml] ${results.length} ML-precision footprints`);
+      } else if (detectionEngine === 'florence2-neural') {
+        results = await fetchFlorence2Footprints(bounds, zoom, indiaMode);
+        console.log(`[DetectEngine:florence2-neural] ${results.length} Florence-2 footprints`);
       } else {
-        // Hybrid: All 3 sources with smart precision merger
-        const [gis, cv, ml] = await Promise.all([
+        // Hybrid: All sources with smart precision merger (Custom Raster > Florence-2 > ML > OSM > CV)
+        const [gis, cv, ml, f2] = await Promise.all([
           fetchOSMBuildingFootprints(bounds, indiaMode).catch(() => [] as BuildingFootprint[]),
           detectOpticalSatelliteFootprints(bounds, zoom, indiaMode, geometryMode, detectionDensity).catch(() => [] as BuildingFootprint[]),
           fetchOvertureMLFootprints(bounds, indiaMode).catch(() => [] as BuildingFootprint[]),
+          fetchFlorence2Footprints(bounds, zoom, indiaMode).catch(() => [] as BuildingFootprint[]),
         ]);
-        console.log(`[DetectEngine:hybrid] OSM: ${gis.length}, CV: ${cv.length}, ML: ${ml.length}`);
-        results = mergeFootprints(gis, cv, ml);
+        console.log(`[DetectEngine:hybrid] CustomRaster: ${customRasterFootprints.length}, Florence2: ${f2.length}, OSM: ${gis.length}, CV: ${cv.length}, ML: ${ml.length}`);
+        results = mergeFootprints(gis, cv, ml, f2, customRasterFootprints);
+      }
+
+      // If dedicated engine returned 0 and custom raster footprints exist, augment with custom raster
+      if (results.length === 0 && customRasterFootprints.length > 0) {
+        results = customRasterFootprints;
       }
 
       set({

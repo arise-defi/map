@@ -4,6 +4,8 @@ import 'leaflet/dist/leaflet.css';
 import { useEarthAIStore } from '../lib/earth-ai';
 import { useBuildingFootprintStore } from '../lib/building-footprint';
 import { useRoadFootprintStore, ROAD_CLASSIFICATION_STYLES, ROAD_SURFACE_STYLES } from '../lib/road-footprint';
+import { useCustomDataStore } from '../lib/custom-data';
+import { useGISToolsStore } from './QGISToolsPanel';
 
 export type MapTileLayerKey =
   | 'osm'
@@ -151,7 +153,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const aiBoundsRectRef = useRef<L.Rectangle | null>(null);
   const bldLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const roadLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const customDataLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const gisToolsLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const roiRectRef = useRef<L.Rectangle | null>(null);
+  const prevTifOnlyRef = useRef<boolean>(false);
 
   // Initialize map
   useEffect(() => {
@@ -187,6 +192,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }).addTo(map);
     }
 
+    // Respect "TIF Only" mode on first paint (basemap fully hidden)
+    if (useCustomDataStore.getState().tifOnlyMode) {
+      layer.setOpacity(0);
+      if (labelsLayerRef.current) labelsLayerRef.current.setOpacity(0);
+      map.getContainer().style.background = '#0b0d10';
+    }
+
     const markerGroup = L.layerGroup().addTo(map);
     markerLayerGroupRef.current = markerGroup;
 
@@ -198,6 +210,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
     const roadGroup = L.layerGroup().addTo(map);
     roadLayerGroupRef.current = roadGroup;
+
+    const customDataGroup = L.layerGroup().addTo(map);
+    customDataLayerGroupRef.current = customDataGroup;
+
+    const gisGroup = L.layerGroup().addTo(map);
+    gisToolsLayerGroupRef.current = gisGroup;
 
     map.on('click', (e) => {
       if (onMapClick) {
@@ -222,6 +240,47 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       if (clickToScan) {
         analyzeTile(e.latlng.lat, e.latlng.lng, map.getZoom());
       }
+
+      // GIS Tools interactions
+      const gis = useGISToolsStore.getState();
+      if (gis.activeTool === 'measure-distance' || gis.activeTool === 'measure-area') {
+        gis.addMeasurePoint({ lat: e.latlng.lat, lng: e.latlng.lng });
+      } else if (gis.activeTool === 'identify') {
+        // Find nearest custom data feature
+        const { layers } = useCustomDataStore.getState();
+        let nearest: any = null;
+        let minDist = Infinity;
+        layers.forEach(layer => {
+          if (!layer.visible) return;
+          layer.features.forEach(feat => {
+            if (feat.center) {
+              const d = Math.sqrt((feat.center[0] - e.latlng.lng) ** 2 + (feat.center[1] - e.latlng.lat) ** 2);
+              if (d < minDist) { minDist = d; nearest = feat; }
+            }
+          });
+        });
+        if (nearest && minDist < 0.01) {
+          gis.setIdentifyResult({
+            Name: nearest.properties?.name || nearest.id,
+            Type: nearest.properties?.classification || nearest.type,
+            'Area (m²)': nearest.area_sqm?.toFixed(1) || '-',
+            Floors: nearest.estimated_floors || '-',
+            'Height (m)': nearest.estimated_height_m || '-',
+            Source: nearest.properties?.source || '-',
+            Confidence: nearest.properties?.confidence || '-',
+            Lat: e.latlng.lat.toFixed(6),
+            Lng: e.latlng.lng.toFixed(6),
+          });
+        } else {
+          gis.setIdentifyResult({ Lat: e.latlng.lat.toFixed(6), Lng: e.latlng.lng.toFixed(6), Info: 'No feature at this location' });
+        }
+      } else if (gis.activeTool === 'draw-point') {
+        gis.addDrawnFeature({
+          id: `draw-${Date.now()}`, type: 'Point',
+          coordinates: [[e.latlng.lng, e.latlng.lat]],
+          color: '#3b82f6', label: `Point ${gis.drawnFeatures.length + 1}`,
+        });
+      }
     });
 
     const syncMapBounds = () => {
@@ -244,6 +303,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         const c = map.getCenter();
         onMoveEnd([c.lat, c.lng], map.getZoom());
       }
+    });
+
+    // GIS coordinate tracking
+    map.on('mousemove', (e) => {
+      useGISToolsStore.getState().setCursorCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
     });
 
     mapInstanceRef.current = map;
@@ -291,6 +355,11 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     }).addTo(map);
 
     tileLayerInstanceRef.current = newLayer;
+
+    // Keep the basemap hidden while "TIF Only" mode is active
+    if (useCustomDataStore.getState().tifOnlyMode) {
+      newLayer.setOpacity(0);
+    }
   }, [tileLayer]);
 
   // Update labels overlay when showLabels or tileLayer changes
@@ -299,6 +368,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const map = mapInstanceRef.current;
 
     const shouldShow = showLabels && tileLayer !== 'satellite-pure';
+    const tifOnly = useCustomDataStore.getState().tifOnlyMode;
 
     if (shouldShow) {
       if (!labelsLayerRef.current) {
@@ -309,6 +379,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           zIndex: 5,
         }).addTo(map);
       }
+      labelsLayerRef.current.setOpacity(tifOnly ? 0 : 1);
     } else {
       if (labelsLayerRef.current) {
         map.removeLayer(labelsLayerRef.current);
@@ -973,6 +1044,164 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     });
   }, [roadFootprints, roadSelectedId, roadVisual, setRoadSelectedId]);
 
+  // ---------------------------------------------------------------------------
+  // Custom Data Layer Rendering
+  // ---------------------------------------------------------------------------
+  const {
+    layers: customLayers,
+    selectedFeatureId: cdSelectedId,
+    show3D: cdShow3D,
+    heightScale: cdHeightScale,
+    selectedFloorIndex: cdSelectedFloor,
+    selectFeature: cdSelectFeature,
+    tifOnlyMode,
+  } = useCustomDataStore();
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !customDataLayerGroupRef.current) return;
+    const group = customDataLayerGroupRef.current;
+    group.clearLayers();
+
+    customLayers.forEach(layer => {
+      if (!layer.visible) return;
+
+      // Render raster image overlay if the layer has a preview and bounds
+      if (layer.rasterDataUrl && layer.bounds) {
+        const bounds: L.LatLngBoundsExpression = [
+          [layer.bounds.south, layer.bounds.west],
+          [layer.bounds.north, layer.bounds.east],
+        ];
+        const overlay = L.imageOverlay(layer.rasterDataUrl, bounds, {
+          opacity: layer.opacity,
+          interactive: false,
+        });
+        group.addLayer(overlay);
+
+        // Add a dashed border rectangle to show the raster extent
+        const rect = L.rectangle(bounds, {
+          color: layer.color,
+          weight: 2,
+          fillOpacity: 0,
+          dashArray: '6 4',
+          interactive: false,
+        });
+        group.addLayer(rect);
+      }
+
+      if (layer.features.length === 0) return;
+      const color = layer.color;
+      const opacity = layer.opacity;
+
+      layer.features.forEach(feat => {
+        const isSelected = cdSelectedId === feat.id;
+
+        if (feat.type === 'Point' && feat.center) {
+          const marker = L.circleMarker([feat.center[1], feat.center[0]], {
+            radius: isSelected ? 8 : 5,
+            color: isSelected ? '#fff' : color,
+            fillColor: color,
+            fillOpacity: opacity,
+            weight: isSelected ? 3 : 1.5,
+          });
+          marker.bindPopup(`<strong style="color: ${color};">${feat.properties?.name || feat.id}</strong>`);
+          marker.on('click', () => cdSelectFeature(feat.id));
+          group.addLayer(marker);
+        }
+
+        if (feat.type === 'LineString' && feat.coordinates) {
+          const latlngs = feat.coordinates.map((c: number[]) => [c[1], c[0]] as [number, number]);
+          const line = L.polyline(latlngs, {
+            color,
+            weight: isSelected ? 4 : 2,
+            opacity,
+          });
+          line.on('click', () => cdSelectFeature(feat.id));
+          group.addLayer(line);
+        }
+
+        if ((feat.type === 'Polygon' || feat.type === 'MultiPolygon') && feat.coordinates) {
+          const rings = feat.type === 'Polygon' ? feat.coordinates : feat.coordinates[0];
+          if (!rings || !rings[0]) return;
+          const outerRing = rings[0];
+          const groundCoords: [number, number][] = outerRing.map((c: number[]) => [c[1], c[0]]);
+
+          if (cdShow3D && feat.isBuilding && feat.estimated_height_m) {
+            const h = Math.max(3, feat.estimated_height_m) * cdHeightScale;
+            const offsetLat = h * 0.000009;
+            const offsetLng = h * 0.000006;
+            const roofCoords: [number, number][] = outerRing.map((c: number[]) => [c[1] + offsetLat, c[0] + offsetLng]);
+
+            // Ground shadow
+            group.addLayer(L.polygon(groundCoords, {
+              color: '#000', weight: 1, fillColor: '#000', fillOpacity: 0.35, interactive: false,
+            }));
+
+            // Walls
+            for (let i = 0; i < groundCoords.length - 1; i++) {
+              const g1 = groundCoords[i], g2 = groundCoords[i + 1];
+              const r1 = roofCoords[i], r2 = roofCoords[i + 1];
+              const wallAngle = (Math.atan2(g2[0] - g1[0], g2[1] - g1[1]) * 180) / Math.PI;
+              const isSunlit = wallAngle > -45 && wallAngle < 135;
+
+              const totalFloors = feat.estimated_floors || 1;
+              if (cdSelectedFloor !== null && totalFloors >= 2) {
+                for (let fl = 0; fl < totalFloors; fl++) {
+                  const fracB = fl / totalFloors;
+                  const fracT = (fl + 1) / totalFloors;
+                  const fb1: [number, number] = [g1[0] + (r1[0] - g1[0]) * fracB, g1[1] + (r1[1] - g1[1]) * fracB];
+                  const fb2: [number, number] = [g2[0] + (r2[0] - g2[0]) * fracB, g2[1] + (r2[1] - g2[1]) * fracB];
+                  const ft1: [number, number] = [g1[0] + (r1[0] - g1[0]) * fracT, g1[1] + (r1[1] - g1[1]) * fracT];
+                  const ft2: [number, number] = [g2[0] + (r2[0] - g2[0]) * fracT, g2[1] + (r2[1] - g2[1]) * fracT];
+                  const isActive = fl === cdSelectedFloor;
+                  group.addLayer(L.polygon([fb1, fb2, ft2, ft1], {
+                    color: isActive ? '#fff' : color,
+                    weight: isActive ? 2 : 0.5,
+                    fillColor: isActive ? color : (isSunlit ? color : '#1e293b'),
+                    fillOpacity: isActive ? 0.9 : 0.3,
+                    interactive: false,
+                  }));
+                }
+              } else {
+                group.addLayer(L.polygon([g1, g2, r2, r1], {
+                  color, weight: 0.8,
+                  fillColor: isSunlit ? color : '#1e293b',
+                  fillOpacity: isSunlit ? 0.5 : 0.35,
+                  interactive: false,
+                }));
+              }
+            }
+
+            // Roof
+            const roof = L.polygon(roofCoords, {
+              color: isSelected ? '#fff' : color,
+              weight: isSelected ? 2.5 : 1.5,
+              fillColor: color,
+              fillOpacity: isSelected ? 0.85 : 0.6,
+            });
+            roof.bindPopup(`<strong style="color: ${color};">${feat.properties?.name || feat.id}</strong><br/>` +
+              `${feat.area_sqm || 0} m² · ${feat.estimated_floors || 1} floors · ${feat.estimated_height_m || 3}m`);
+            roof.on('click', () => cdSelectFeature(feat.id));
+            group.addLayer(roof);
+          } else {
+            // 2D polygon
+            const poly = L.polygon(groundCoords, {
+              color: isSelected ? '#fff' : color,
+              weight: isSelected ? 3 : 1.8,
+              fillColor: color,
+              fillOpacity: isSelected ? 0.35 : (feat.isBuilding ? 0.15 : opacity * 0.3),
+              dashArray: feat.isBuilding ? undefined : '4 2',
+            });
+            poly.bindPopup(`<strong style="color: ${color};">${feat.properties?.name || feat.id}</strong><br/>` +
+              (feat.area_sqm ? `Area: ${feat.area_sqm} m²` : '') +
+              (feat.isBuilding ? `<br/>Floors: ${feat.estimated_floors || 1} · Height: ${feat.estimated_height_m || 3}m` : ''));
+            poly.on('click', () => cdSelectFeature(feat.id));
+            group.addLayer(poly);
+          }
+        }
+      });
+    });
+  }, [customLayers, cdSelectedId, cdShow3D, cdHeightScale, cdSelectedFloor, cdSelectFeature]);
+
   // Ensure map container resizes dynamically
   useEffect(() => {
     const handleResize = () => {
@@ -983,6 +1212,93 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // ── TIF Only Mode: hide the base map so ONLY uploaded raster (TIF) data shows ──
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+    const tileLayerInstance = tileLayerInstanceRef.current;
+    const labelsLayer = labelsLayerRef.current;
+
+    if (tifOnlyMode) {
+      // Hide every basemap source (Esri Satellite, OSM, Carto...) — leave only custom rasters
+      if (tileLayerInstance) tileLayerInstance.setOpacity(0);
+      if (labelsLayer) labelsLayer.setOpacity(0);
+      map.getContainer().style.background = '#0b0d10';
+
+      // When switching the mode ON, zoom to the uploaded raster extent
+      if (!prevTifOnlyRef.current) {
+        const rasterBoundsList = useCustomDataStore.getState().layers
+          .filter(l => l.visible && l.layerType === 'raster' && !!l.bounds)
+          .map(l => L.latLngBounds(
+            [l.bounds!.south, l.bounds!.west],
+            [l.bounds!.north, l.bounds!.east]
+          ));
+
+        const first = rasterBoundsList[0];
+        if (first) {
+          const union = rasterBoundsList.slice(1).reduce((acc, b) => acc.extend(b), first);
+          map.fitBounds(union, { padding: [24, 24] });
+        }
+      }
+    } else {
+      // Restore base map
+      if (tileLayerInstance) tileLayerInstance.setOpacity(1);
+      if (labelsLayer) labelsLayer.setOpacity(1);
+      map.getContainer().style.background = '#1a1d20';
+    }
+
+    prevTifOnlyRef.current = tifOnlyMode;
+  }, [tifOnlyMode, tileLayer, showLabels]);
+
+  // ── GIS Tools rendering (measurement lines, drawn features) ──
+  const {
+    activeTool: gisTool,
+    measurePoints: gisMeasurePoints,
+    drawnFeatures: gisDrawnFeatures,
+  } = useGISToolsStore();
+
+  useEffect(() => {
+    if (!mapInstanceRef.current || !gisToolsLayerGroupRef.current) return;
+    const group = gisToolsLayerGroupRef.current;
+    group.clearLayers();
+
+    // Draw measurement points and lines
+    if (gisMeasurePoints.length > 0 && (gisTool === 'measure-distance' || gisTool === 'measure-area')) {
+      // Markers at each point
+      gisMeasurePoints.forEach((pt, i) => {
+        L.circleMarker([pt.lat, pt.lng], {
+          radius: 6, color: '#3b82f6', fillColor: '#60a5fa', fillOpacity: 1, weight: 2,
+        }).bindTooltip(`P${i + 1}`, { permanent: true, direction: 'top', className: 'gis-measure-tooltip' })
+          .addTo(group);
+      });
+
+      if (gisTool === 'measure-distance' && gisMeasurePoints.length >= 2) {
+        const latlngs = gisMeasurePoints.map(p => [p.lat, p.lng] as [number, number]);
+        L.polyline(latlngs, {
+          color: '#3b82f6', weight: 3, dashArray: '8, 4', opacity: 0.9,
+        }).addTo(group);
+      }
+
+      if (gisTool === 'measure-area' && gisMeasurePoints.length >= 3) {
+        const latlngs = gisMeasurePoints.map(p => [p.lat, p.lng] as [number, number]);
+        L.polygon(latlngs, {
+          color: '#8b5cf6', fillColor: '#8b5cf6', fillOpacity: 0.2, weight: 2, dashArray: '6, 3',
+        }).addTo(group);
+      }
+    }
+
+    // Draw annotation features
+    gisDrawnFeatures.forEach(feat => {
+      if (feat.type === 'Point' && feat.coordinates[0]) {
+        const c = feat.coordinates[0] as number[];
+        L.circleMarker([c[1], c[0]], {
+          radius: 8, color: feat.color, fillColor: feat.color, fillOpacity: 0.8, weight: 2,
+        }).bindTooltip(feat.label, { permanent: false, direction: 'top' })
+          .addTo(group);
+      }
+    });
+  }, [gisTool, gisMeasurePoints, gisDrawnFeatures]);
 
   return (
     <div

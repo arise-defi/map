@@ -1,0 +1,85 @@
+﻿python.exe : Warning: You are sending unauthenticated requests to 
+the HF Hub. Please set a HF_TOKEN to enable higher rate limits and 
+faster downloads.
+At line:1 char:94
++ ... lyContinue; & 
+"C:\Users\vinod\AppData\Local\Programs\Python\Python312 ...
++                 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Warning: You ar...ste 
+   r downloads.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[*] loading nvidia/segformer-b0-finetuned-ade-512-512 ...
+
+Loading weights:   0%|          | 0/208 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 208/208 [00:00<00:00, 
+6628.89it/s]
+[*] Test.tif 1276x3141, GSD 0.0259 m/px
+[*] SegFormer: ON (scale 1/3)
+[*] nature veto: 8.9% of pixels (blanket ExG would be 20.0%)
+[*] optical instances: 239, semantic instances: 29
+[*] area filter: 5962..1402770 px (4.0 m2 min)
+[*] dominant street angle: 2.5
+
+=== 47 building footprints (SegFormer+Optical) ===
+  #1:     11.9 m2  centroid=(616,2792) bbox=(507,2740,219,104) rect=0.88 aspect=2.3 road=0.00 build=1.00 nature=0.00 src=both conf=0.96
+  #2:     30.0 m2  centroid=(1124,1708) bbox=(1032,1544,185,328) rect=0.82 aspect=1.9 road=0.00 build=0.91 nature=0.00 src=both conf=0.95
+  #3:     14.8 m2  centroid=(1235,2966) bbox=(1188,2791,95,351) rect=0.82 aspect=4.4 road=0.01 build=0.99 nature=0.00 src=both conf=0.95
+  #4:     54.7 m2  centroid=(425,1830) bbox=(304,1585,243,491) rect=0.77 aspect=2.2 road=0.00 build=1.00 nature=0.00 src=both conf=0.94
+  #5:     29.0 m2  centroid=(927,515) bbox=(833,354,190,324) rect=0.78 aspect=1.8 road=0.00 build=1.00 nature=0.00 src=both conf=0.94
+  #6:     12.5 m2  centroid=(548,779) bbox=(473,692,152,175) rect=0.77 aspect=1.2 road=0.00 build=1.00 nature=0.00 src=both conf=0.94
+  #7:      9.8 m2  centroid=(1058,1299) bbox=(982,1231,154,137) rect=0.76 aspect=1.1 road=0.00 build=1.00 nature=0.00 src=both conf=0.94
+  #8:     87.2 m2  centroid=(553,1499) bbox=(271,1245,546,447) rect=0.71 aspect=1.8 road=0.00 build=0.81 nature=0.00 src=both conf=0.93
+  #9:     70.1 m2  centroid=(390,421) bbox=(32,302,709,231) rect=0.71 aspect=3.4 road=0.00 build=0.80 nature=0.00 src=both conf=0.93
+  #10:     44.2 m2  centroid=(528,2471) bbox=(405,2276,247,391) rect=0.75 aspect=1.7 road=0.00 build=1.00 nature=0.00 src=both conf=0.93
+  #11:     41.3 m2  centroid=(1188,2057) bbox=(1063,1856,212,417) rect=0.72 aspect=2.1 road=0.00 build=0.91 nature=0.00 src=both conf=0.93
+  #12:     27.8 m2  centroid=(873,222) bbox=(764,62,214,326) rect=0.72 aspect=1.8 road=0.00 build=1.00 nature=0.00 src=both conf=0.93
+  #13:     15.9 m2  centroid=(674,760) bbox=(568,648,213,225) rect=0.75 aspect=1.1 road=0.00 build=1.00 nature=0.00 src=both conf=0.93
+  #14:     15.5 m2  centroid=(1196,2301) bbox=(1119,2198,156,208) rect=0.72 aspect=1.3 road=0.00 build=0.97 nature=0.00 src=both conf=0.93
+  #15:      9.9 m2  centroid=(1222,2502) bbox=(1169,2407,106,192) rect=0.73 aspect=1.8 road=0.00 build=1.00 nature=0.00 src=both conf=0.93
+  #16:      8.3 m2  centroid=(844,43) bbox=(742,1,205,85) rect=0.72 aspect=2.4 road=0.00 build=1.00 nature=0.00 src=both conf=0.93
+  #17:     28.4 m2  centroid=(842,1660) bbox=(742,1517,223,287) rect=0.69 aspect=1.2 road=0.00 build=1.00 nature=0.00 src=both conf=0.92
+  #18:     17.4 m2  centroid=(122,124) bbox=(1,44,243,162) rect=0.66 aspect=1.5 road=0.00 build=1.00 nature=0.00 src=both conf=0.92
+  #19:     15.5 m2  centroid=(1089,1464) bbox=(987,1384,195,180) rect=0.69 aspect=1.1 road=0.00 build=1.00 nature=0.00 src=both conf=0.92
+  #20:     14.0 m2  centroid=(586,170) bbox=(501,81,171,184) rect=0.68 aspect=1.1 road=0.00 build=0.85 nature=0.00 src=both conf=0.92
+  #21:     13.2 m2  centroid=(552,1000) bbox=(461,921,191,159) rect=0.67 aspect=1.2 road=0.00 build=1.00 nature=0.00 src=both conf=0.92
+  #22:      8.0 m2  centroid=(1227,2696) bbox=(1180,2600,95,192) rect=0.66 aspect=2.0 road=0.00 build=1.00 nature=0.00 src=both conf=0.92
+  #23:      7.5 m2  centroid=(474,627) bbox=(415,558,121,136) rect=0.68 aspect=1.1 road=0.00 build=1.00 nature=0.00 src=both conf=0.92
+  #24:      7.5 m2  centroid=(712,946) bbox=(636,894,158,121) rect=0.66 aspect=1.1 road=0.00 build=1.00 nature=0.00 src=both conf=0.92
+  #25:      6.7 m2  centroid=(353,3108) bbox=(226,3078,255,62) rect=0.65 aspect=4.2 road=0.22 build=0.78 nature=0.00 src=both conf=0.92
+  #26:     24.6 m2  centroid=(962,797) bbox=(863,655,206,279) rect=0.64 aspect=1.4 road=0.00 build=1.00 nature=0.00 src=both conf=0.91
+  #27:     23.9 m2  centroid=(867,2655) bbox=(752,2539,222,244) rect=0.65 aspect=1.2 road=0.00 build=0.85 nature=0.00 src=both conf=0.91
+  #28:     19.6 m2  centroid=(68,1426) bbox=(-4,1298,146,258) rect=0.86 aspect=1.9 road=0.00 build=0.56 nature=0.00 src=both conf=0.91
+  #29:     18.8 m2  centroid=(317,3023) bbox=(195,2943,248,157) rect=0.75 aspect=1.7 road=0.24 build=0.64 nature=0.00 src=both conf=0.91
+  #30:     11.5 m2  centroid=(51,1088) bbox=(1,949,101,278) rect=0.62 aspect=2.8 road=0.00 build=1.00 nature=0.00 src=both conf=0.91
+  #31:     10.0 m2  centroid=(156,41) bbox=(1,1,311,82) rect=0.60 aspect=3.8 road=0.00 build=1.00 nature=0.00 src=both conf=0.91
+  #32:      7.4 m2  centroid=(534,2692) bbox=(451,2637,168,108) rect=0.61 aspect=1.5 road=0.00 build=1.00 nature=0.00 src=both conf=0.91
+  #33:     13.3 m2  centroid=(396,819) bbox=(303,719,201,201) rect=0.53 aspect=1.2 road=0.00 build=1.00 nature=0.00 src=both conf=0.9
+  #34:      8.0 m2  centroid=(568,907) bbox=(469,831,196,113) rect=0.57 aspect=1.6 road=0.00 build=1.00 nature=0.00 src=both conf=0.9
+  #35:      4.8 m2  centroid=(372,52) bbox=(313,1,120,104) rect=0.59 aspect=1.2 road=0.00 build=1.00 nature=0.00 src=both conf=0.9
+  #36:     28.0 m2  centroid=(1088,1094) bbox=(956,909,255,335) rect=0.50 aspect=1.6 road=0.00 build=1.00 nature=0.00 src=both conf=0.89
+  #37:     12.7 m2  centroid=(720,654) bbox=(619,520,194,251) rect=0.51 aspect=2.0 road=0.00 build=1.00 nature=0.00 src=both conf=0.89
+  #38:     28.3 m2  centroid=(169,254) bbox=(1,145,335,204) rect=0.62 aspect=1.7 road=0.00 build=0.61 nature=0.00 src=both conf=0.88
+  #39:     27.3 m2  centroid=(436,1240) bbox=(258,1111,345,302) rect=0.57 aspect=1.1 road=0.00 build=0.58 nature=0.00 src=both conf=0.86
+  #40:     17.4 m2  centroid=(97,1761) bbox=(1,1662,198,197) rect=0.72 aspect=1.1 road=0.00 build=0.46 nature=0.00 src=both conf=0.85
+  #41:     12.2 m2  centroid=(74,1646) bbox=(1,1554,146,184) rect=0.68 aspect=1.3 road=0.00 build=0.20 nature=0.00 src=optical conf=0.74
+  #42:     44.6 m2  centroid=(276,2791) bbox=(96,2575,390,404) rect=0.55 aspect=1.5 road=0.08 build=0.28 nature=0.00 src=optical conf=0.73
+  #43:     37.7 m2  centroid=(200,2405) bbox=(95,2208,202,395) rect=0.72 aspect=2.0 road=0.00 build=0.10 nature=0.00 src=optical conf=0.71
+  #44:     22.1 m2  centroid=(150,2114) bbox=(62,1991,178,246) rect=0.83 aspect=1.4 road=0.00 build=0.03 nature=0.00 src=optical conf=0.71
+  #45:     17.6 m2  centroid=(420,203) bbox=(324,110,193,186) rect=0.81 aspect=1.0 road=0.00 build=0.06 nature=0.00 src=optical conf=0.71
+  #46:     12.1 m2  centroid=(1116,3032) bbox=(1047,2925,139,215) rect=0.61 aspect=1.6 road=0.59 build=0.41 nature=0.00 src=both conf=0.7
+  #47:     11.2 m2  centroid=(105,1928) bbox=(36,1847,140,163) rect=0.81 aspect=1.2 road=0.00 build=0.01 nature=0.00 src=optical conf=0.7
+  total roof area: 1014.1 m2
+
+=== coverage of measured surface patches ===
+  [ROOF] green roof          65.7%
+  [ROOF] rust roof           51.0%
+  [ROOF] dark green roof     82.6%
+  [ROOF] gray roof           22.3%
+  [bg  ] road (right)        43.7%
+  [bg  ] dirt yard            0.0%
+  [bg  ] dirt left strip     43.4%
+  [bg  ] trees                0.0%
+[+] wrote c:\Users\vinod\Desktop\map\map\_overlay_segformer.png
+[+] wrote c:\Users\vinod\Desktop\map\map\_overlay_segformer_small.png

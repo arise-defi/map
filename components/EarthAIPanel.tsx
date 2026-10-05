@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useEarthAIStore, EarthAIResult } from '../lib/earth-ai';
 
 interface EarthAIPanelProps {
@@ -46,6 +46,15 @@ export const EarthAIPanel: React.FC<EarthAIPanelProps> = ({
   const [isConfigExpanded, setIsConfigExpanded] = useState(false);
   const [copiedNotification, setCopiedNotification] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState<'all' | 'buildings' | 'roads' | 'vehicles'>('all');
+  const [show3D, setShow3D] = useState(false);
+  const [heightScale, setHeightScale] = useState(1.0);
+  const [selectedFloorIndex, setSelectedFloorIndex] = useState<number | null>(null);
+
+  // Get the selected building's detection data
+  const selectedBuilding = useMemo(() => {
+    if (!selectedHomeId || !currentResult) return null;
+    return currentResult.detections.find(d => d.id === selectedHomeId) || null;
+  }, [selectedHomeId, currentResult]);
 
   if (!isPanelOpen) return null;
 
@@ -668,6 +677,127 @@ Inference: ${currentResult.inference_ms}ms (${currentResult.gpu || 'Simulator'})
                     </button>
                   ))}
               </div>
+            </div>
+
+            {/* 3D View & Floor Selection */}
+            <div className="earth-ai-section">
+              <span className="section-title">3D View & Floor Selection</span>
+
+              {/* 3D Toggle */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  className={`layer-btn ${!show3D ? 'active' : ''}`}
+                  onClick={() => setShow3D(false)}
+                  style={{ flex: 1, padding: '6px 10px', fontSize: '11px' }}
+                >
+                  <span className="icon" style={{ fontSize: '14px' }}>map</span>
+                  <span>2D Flat</span>
+                </button>
+                <button
+                  type="button"
+                  className={`layer-btn ${show3D ? 'active' : ''}`}
+                  onClick={() => setShow3D(true)}
+                  style={{ flex: 1, padding: '6px 10px', fontSize: '11px' }}
+                >
+                  <span className="icon" style={{ fontSize: '14px' }}>view_in_ar</span>
+                  <span>3D Extrude</span>
+                </button>
+              </div>
+
+              {show3D && (
+                <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}>
+                  <span>Height:</span>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="3.0"
+                    step="0.1"
+                    value={heightScale}
+                    onChange={(e) => setHeightScale(parseFloat(e.target.value))}
+                    style={{ flex: 1, accentColor: '#f472b6' }}
+                  />
+                  <span>{heightScale.toFixed(1)}x</span>
+                </div>
+              )}
+
+              {/* Selected Building Floor Selector */}
+              {selectedBuilding && (
+                <div style={{
+                  marginTop: '10px',
+                  background: 'rgba(244,114,182,0.08)',
+                  border: '1px solid rgba(244,114,182,0.25)',
+                  borderRadius: '8px',
+                  padding: '10px 12px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#f472b6' }}>
+                      <span className="icon" style={{ fontSize: '14px', verticalAlign: 'middle' }}>apartment</span>
+                      {' '}{selectedBuilding.id}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)' }}>
+                      {selectedBuilding.area_sqm} m2 | {selectedBuilding.category || 'Building'}
+                    </span>
+                  </div>
+
+                  {/* Floor info */}
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginBottom: '8px' }}>
+                    Est. Floors: <strong style={{ color: '#f472b6' }}>{selectedBuilding.estimated_floors || 2}</strong>
+                    {' | '}
+                    Est. Height: <strong style={{ color: '#f472b6' }}>{selectedBuilding.estimated_height_m || 6.4}m</strong>
+                    {' | '}
+                    Area/Floor: <strong>{Math.round(selectedBuilding.area_sqm / (selectedBuilding.estimated_floors || 2))} m2</strong>
+                  </div>
+
+                  {/* Floor buttons */}
+                  <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>Select Floor:</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFloorIndex(null)}
+                      style={{
+                        padding: '4px 10px', fontSize: '11px', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                        background: selectedFloorIndex === null ? '#f472b6' : 'rgba(255,255,255,0.1)',
+                        color: selectedFloorIndex === null ? '#000' : 'rgba(255,255,255,0.7)',
+                        fontWeight: selectedFloorIndex === null ? 700 : 400
+                      }}
+                    >
+                      All
+                    </button>
+                    {Array.from({ length: selectedBuilding.estimated_floors || 2 }, (_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setSelectedFloorIndex(i)}
+                        style={{
+                          padding: '4px 10px', fontSize: '11px', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                          background: selectedFloorIndex === i ? '#f472b6' : 'rgba(255,255,255,0.1)',
+                          color: selectedFloorIndex === i ? '#000' : 'rgba(255,255,255,0.7)',
+                          fontWeight: selectedFloorIndex === i ? 700 : 400
+                        }}
+                      >
+                        F{i + 1}
+                      </button>
+                    ))}
+                  </div>
+
+                  {selectedFloorIndex !== null && (
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: 'rgba(255,255,255,0.6)', padding: '4px 8px', background: 'rgba(0,0,0,0.2)', borderRadius: '4px' }}>
+                      Floor {selectedFloorIndex + 1} of {selectedBuilding.estimated_floors || 2}
+                      {' | '}
+                      Height: {((selectedFloorIndex) * 3.2).toFixed(1)}m - {((selectedFloorIndex + 1) * 3.2).toFixed(1)}m
+                      {' | '}
+                      Area: {Math.round(selectedBuilding.area_sqm / (selectedBuilding.estimated_floors || 2))} m2
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!selectedBuilding && currentResult && currentResult.detections.length > 0 && (
+                <div style={{ marginTop: '8px', fontSize: '11px', color: 'rgba(255,255,255,0.4)', textAlign: 'center', padding: '8px' }}>
+                  Click a building above to select floor
+                </div>
+              )}
             </div>
 
             {/* Footer Metadata & Export Buttons */}

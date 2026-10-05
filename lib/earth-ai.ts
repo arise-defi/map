@@ -37,6 +37,8 @@ export interface HomeDetection {
   center: [number, number]; // [lon, lat]
   category?: string; // 'Residential' | 'Commercial' | 'Warehouse' | 'Structure'
   angle_deg?: number;
+  estimated_floors?: number;
+  estimated_height_m?: number;
 }
 
 export interface RoadStats {

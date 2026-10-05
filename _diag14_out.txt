@@ -1,0 +1,110 @@
+﻿per-ROI texture / vegetation stats (L15,L31 = local std 15/31 px, exg = 2G-R-B)
+ROI                  L15    L31    exg      V
+green roof          14.8   19.8   50.2  157.5
+rust roof            8.7   11.4   -9.5  107.4
+dark green roof      2.1    3.1   40.7   59.3
+gray roof           25.8   28.3    0.0  109.0
+road (right)        17.3   24.0    3.0  158.2
+dirt yard           23.7   30.4    2.7   84.0
+dirt left strip     17.5   25.6   16.7  175.8
+trees               26.4   33.4   19.1   93.5
+
+=== W1 veg18/sm12/cl9  veg_lstd>18 smooth<12 ringT>1000000000.0 close9 elong<=4.0 rect>=0.4
+coverage          kept area
+green roof            68.4%
+rust roof             72.6%
+dark green roof       97.2%
+gray roof              8.0%
+road (right)          10.1%
+dirt yard              1.0%
+dirt left strip        0.0%
+trees                  5.5%
+kept components   10
+   a_m2  elong  rect  lstd      V    ang  bbox
+  238.5   1.93  0.41   4.3   49.3   -8.5  (1054, 2397, 260, 1109)
+   88.9   1.36  0.61   4.3  103.4   -7.1  (664, 1117, 217, 794)
+   57.0   3.24  0.97   6.7  157.2   -8.8  (88, 338, 90, 658)
+   57.0   3.03  0.88   6.6  209.2   -8.7  (288, 524, 117, 692)
+   43.7   2.77  0.43   6.5   42.2  -84.1  (515, 773, 144, 813)
+   38.9   3.54  0.51   6.0   42.1  -87.9  (0, 187, 69, 724)
+   19.9   1.49  0.46   4.1  224.6  -90.0  (2927, 3141, 869, 1187)
+   11.6   2.29  0.89   3.6   23.9   -8.2  (2731, 2854, 515, 729)
+    4.8   1.94  0.59   8.8  202.5  -90.0  (1006, 1164, 1194, 1276)
+    4.5   1.10  0.88   4.5   28.9   -7.7  (714, 816, 1192, 1276)
+
+=== W2 veg18/sm15/cl15  veg_lstd>18 smooth<15 ringT>1000000000.0 close15 elong<=4.0 rect>=0.4
+coverage          kept area
+green roof            70.3%
+rust roof             84.7%
+dark green roof       97.2%
+gray roof             11.4%
+road (right)          59.8%
+dirt yard             30.1%
+dirt left strip        0.0%
+trees                  7.0%
+kept components   11
+   a_m2  elong  rect  lstd      V    ang  bbox
+  710.2   3.46  0.40   6.3  125.7   -9.3  (0, 3141, 137, 1276)
+   60.5   2.75  0.66   7.2  207.7   -1.8  (287, 524, 56, 692)
+   58.0   3.24  0.98   6.8  157.1   -8.8  (88, 338, 90, 658)
+   44.7   3.90  0.49   6.6   57.7  -90.0  (0, 193, 0, 749)
+   26.5   1.48  0.66   6.2  189.9  -90.0  (2924, 3141, 868, 1188)
+   17.9   2.25  0.44  12.8  147.1  -90.0  (0, 382, 1106, 1276)
+   11.8   2.27  0.89   3.8   24.0   -8.0  (2730, 2854, 515, 730)
+    5.5   1.57  0.54  10.6   69.7  -58.4  (537, 669, 1137, 1276)
+    4.8   2.22  0.61  13.9   78.5  -90.0  (2838, 3010, 0, 78)
+    4.7   2.87  0.59  11.0  117.4   -9.2  (2790, 2870, 888, 1074)
+    4.4   2.93  0.45  13.5   77.7  -90.0  (2712, 2784, 766, 975)
+
+=== W3 veg22/sm15/cl21  veg_lstd>22 smooth<15 ringT>1000000000.0 close21 elong<=4.0 rect>=0.4
+coverage          kept area
+green roof             0.0%
+rust roof              0.0%
+dark green roof        0.0%
+gray roof              0.0%
+road (right)           0.1%
+dirt yard              0.0%
+dirt left strip        0.0%
+trees                  0.0%
+kept components   5
+   a_m2  elong  rect  lstd      V    ang  bbox
+   25.4   2.27  0.56  14.7  152.1  -90.0  (0, 414, 1093, 1276)
+   13.4   2.92  0.60   6.2   32.1   -5.7  (2730, 2854, 429, 755)
+    6.9   3.65  0.58  13.9  121.6   -9.5  (2789, 2880, 819, 1074)
+    6.0   1.86  0.60  15.6   80.8  -90.0  (2838, 3010, 0, 93)
+    5.0   3.22  0.48  15.3   79.1  -89.1  (2712, 2784, 766, 994)
+
+=== W4 veg25/sm18/cl21  veg_lstd>25 smooth<18 ringT>1000000000.0 close21 elong<=4.0 rect>=0.4
+coverage          kept area
+green roof             0.0%
+rust roof              0.0%
+dark green roof        0.0%
+gray roof              0.0%
+road (right)           0.0%
+dirt yard              0.0%
+dirt left strip        0.0%
+trees                  0.0%
+kept components   1
+   a_m2  elong  rect  lstd      V    ang  bbox
+    8.1   2.06  0.46  17.1   95.9  -90.0  (2814, 3052, 0, 116)
+
+=== W5 blanketVeg/sm15  veg_lstd>-1 smooth<15 ringT>1000000000.0 close15 elong<=4.0 rect>=0.4
+coverage          kept area
+green roof             6.8%
+rust roof              0.0%
+dark green roof        0.0%
+gray roof              0.0%
+road (right)           0.1%
+dirt yard             30.1%
+dirt left strip        0.0%
+trees                  0.0%
+kept components   8
+   a_m2  elong  rect  lstd      V    ang  bbox
+   44.7   3.90  0.49   6.6   57.7  -90.0  (0, 193, 0, 749)
+   26.5   1.48  0.66   6.2  189.9  -90.0  (2924, 3141, 868, 1188)
+   17.9   2.25  0.44  12.8  147.1  -90.0  (0, 382, 1106, 1276)
+   11.8   2.27  0.89   3.8   24.0   -8.0  (2730, 2854, 515, 730)
+    5.5   1.57  0.54  10.6   69.7  -58.4  (537, 669, 1137, 1276)
+    4.8   2.22  0.61  13.9   78.5  -90.0  (2838, 3010, 0, 78)
+    4.7   2.87  0.59  11.0  117.4   -9.2  (2790, 2870, 888, 1074)
+    4.4   2.93  0.45  13.5   77.7  -90.0  (2712, 2784, 766, 975)

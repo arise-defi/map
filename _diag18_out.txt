@@ -1,0 +1,36 @@
+﻿[*] loading nvidia/segformer-b0-finetuned-ade-512-512 ...
+python.exe : 
+At line:1 char:93
++ ... lyContinue; & 
+"C:\Users\vinod\AppData\Local\Programs\Python\Python312 ...
++                 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteEx 
+   ception
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Loading weights:   0%|          | 0/208 [00:00<?, ?it/s]
+Loading weights: 100%|██████████| 208/208 [00:00<00:00, 
+3492.45it/s]
+Warning: You are sending unauthenticated requests to the HF Hub. 
+Please set a HF_TOKEN to enable higher rate limits and faster 
+downloads.
+[*] cls map (3141, 1276), build_prob mean 0.660
+  [ROOF] green roof        building(1)=68%, door(14)=32%, windowpane(8)=0%
+  [ROOF] rust roof         building(1)=87%, plant(17)=13%
+  [ROOF] dark green roof   building(1)=81%, door(14)=16%, toilet(65)=2%, box(41)=1%
+  [ROOF] gray roof         building(1)=95%, tree(4)=4%, wall(0)=1%
+  [bg  ] road (right)      building(1)=94%, wall(0)=3%, tree(4)=2%, door(14)=0%
+  [bg  ] dirt yard         building(1)=100%
+  [bg  ] dirt left strip   tree(4)=73%, plant(17)=21%, wall(0)=4%, building(1)=1%
+  [bg  ] trees             plant(17)=70%, building(1)=30%
+[*] frame: building 77.1%, road/street/sidewalk/earth 2.5%
+  [ROOF] green roof        build= 68.0%  road=  0.0%
+  [ROOF] rust roof         build= 87.2%  road=  0.0%
+  [ROOF] dark green roof   build= 81.2%  road=  0.0%
+  [ROOF] gray roof         build= 96.0%  road=  0.0%
+  [bg  ] road (right)      build= 97.8%  road=  0.0%
+  [bg  ] dirt yard         build=100.0%  road=  0.0%
+  [bg  ] dirt left strip   build=  5.1%  road=  0.0%
+  [bg  ] trees             build= 30.1%  road=  0.0%
+[+] wrote _diag18_build.png (white = building class)

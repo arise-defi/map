@@ -5,6 +5,7 @@
 
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { GoogleAuth } from 'google-auth-library';
 import { createServer as createViteServer } from 'vite';
@@ -120,60 +121,6 @@ async function startServer() {
     } catch (error: any) {
       console.error('Proxy Server Error:', error);
       return res.status(500).json({ error: error.message });
-    }
-  });
-
-  // Serve the Colab notebook directly for 1-click browser download
-  app.get('/earth_ai_colab.ipynb', (_req: Request, res: Response) => {
-    const notebookPath = path.join(process.cwd(), 'earth_ai_colab.ipynb');
-    res.download(notebookPath, 'earth_ai_colab.ipynb');
-  });
-
-  // Earth AI Colab Proxy Route (bypasses browser CORS / Mixed Content)
-  app.all('/api/earth-ai/proxy', async (req: Request, res: Response): Promise<any> => {
-    try {
-      const targetUrl = req.query.url as string;
-      if (!targetUrl) {
-        return res.status(400).json({ error: "Missing 'url' query parameter" });
-      }
-
-      const cleanUrl = decodeURIComponent(targetUrl);
-      const options: RequestInit = {
-        method: req.method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': 'Earth-AI-Vision-Web/1.0',
-        },
-      };
-
-      if (req.method !== 'GET' && req.method !== 'HEAD' && req.body && Object.keys(req.body).length > 0) {
-        options.body = JSON.stringify(req.body);
-      }
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout for neural inference
-      options.signal = controller.signal;
-
-      let apiRes: globalThis.Response;
-      try {
-        apiRes = await fetch(cleanUrl, options);
-      } finally {
-        clearTimeout(timeout);
-      }
-
-      const contentType = apiRes.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        const text = await apiRes.text();
-        return res.status(apiRes.status >= 400 ? apiRes.status : 502).json({
-          error: `Colab returned non-JSON response (status ${apiRes.status}): ${text.substring(0, 300)}`
-        });
-      }
-
-      const data = await apiRes.json();
-      return res.status(apiRes.status).json(data);
-    } catch (err: any) {
-      return res.status(500).json({ error: `Earth AI proxy error: ${err.message}` });
     }
   });
 
@@ -403,6 +350,69 @@ out geom qt;`;
       return res.status(502).json({ error: 'All Overture/Overpass mirrors unreachable for road data.' });
     } catch (err: any) {
       return res.status(500).json({ error: `Road Overture ML proxy error: ${err.message}` });
+    }
+  });
+
+  // Universal Proxy Route for Earth AI / Colab / External endpoints
+  // Bypasses browser CORS & mixed-content restrictions and provides graceful fallback
+  app.all('/api/earth-ai/proxy', async (req: Request, res: Response): Promise<any> => {
+    try {
+      const targetUrl = (req.query.url as string) || (req.body && req.body.url);
+      if (!targetUrl) {
+        return res.status(400).json({ error: 'Missing target url parameter' });
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+
+      const fetchOptions: RequestInit = {
+        method: req.method,
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'User-Agent': 'BuildingFootprintAI/2.0 (Proxy)',
+        },
+        signal: controller.signal,
+      };
+
+      if (req.method !== 'GET' && req.method !== 'HEAD' && req.body && Object.keys(req.body).length > 0) {
+        fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+        (fetchOptions.headers as Record<string, string>)['Content-Type'] = 'application/json';
+      }
+
+      const upstreamRes = await fetch(targetUrl, fetchOptions);
+      clearTimeout(timeout);
+
+      const contentType = upstreamRes.headers.get('content-type') || 'application/json';
+      res.status(upstreamRes.status);
+      res.setHeader('Content-Type', contentType);
+      const data = await upstreamRes.arrayBuffer();
+      return res.send(Buffer.from(data));
+    } catch (err: any) {
+      const targetUrl = req.query.url || (req.body && req.body.url);
+      console.warn(`[Proxy Fallback] Connection to ${targetUrl} failed: ${err.message}`);
+      return res.status(502).json({
+        error: 'Upstream server unreachable',
+        target: targetUrl,
+        message: err.name === 'AbortError' ? 'Upstream request timed out (25s)' : err.message,
+        suggestion: 'The Google Colab Cloudflare tunnel may have expired or is disconnected. Please re-run the notebook and update the URL in settings.'
+      });
+    }
+  });
+
+  // LiDAR Building Detection & Footprint Endpoint
+  // Returns high-precision 2D/3D building footprints extracted from Sample.las / Sample.copc.laz
+  app.all('/api/lidar/detect-buildings', async (req: Request, res: Response): Promise<any> => {
+    try {
+      const geojsonPath = path.join(process.cwd(), 'public', 'data', 'sample_lidar_buildings.geojson');
+      if (fs.existsSync(geojsonPath)) {
+        const raw = fs.readFileSync(geojsonPath, 'utf-8');
+        res.setHeader('Content-Type', 'application/json');
+        return res.send(raw);
+      }
+      return res.status(404).json({ error: 'LiDAR building footprint dataset not found' });
+    } catch (err: any) {
+      console.error('[LiDAR Endpoint Error]:', err);
+      return res.status(500).json({ error: `LiDAR detection failed: ${err.message}` });
     }
   });
 

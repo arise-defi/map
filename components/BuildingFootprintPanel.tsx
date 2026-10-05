@@ -300,7 +300,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
             value={detectionEngine}
             onChange={(e) => setDetectionEngine(e.target.value as any)}
           >
-            <option value="hybrid">⚡ Auto-Hybrid (ML + GIS + CV Fusion)</option>
+            <option value="hybrid">⚡ Auto-Hybrid (ML + GIS + CV + Florence-2 Fusion)</option>
+            <option value="florence2-neural">🧠 Florence-2 Neural (Microsoft Building Segmentation)</option>
             <option value="overture-ml">🎯 ML Precision (Microsoft/Overture ML Polygons)</option>
             <option value="osm-gis">🌐 OSM GIS Ground Truth (Hand-traced Cadastral)</option>
             <option value="cv-optical">🛰️ Optical Satellite AI (Party-Wall Decoupler)</option>
@@ -562,6 +563,9 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                 <span>📊 Sources:</span>
                 {footprints.filter(f => f.source === 'overture-ml').length > 0 && (
                   <span style={{ color: '#a78bfa' }}>🎯 ML: {footprints.filter(f => f.source === 'overture-ml').length}</span>
+                )}
+                {footprints.filter(f => f.source === 'florence2-neural').length > 0 && (
+                  <span style={{ color: '#f472b6' }}>🧠 Florence-2: {footprints.filter(f => f.source === 'florence2-neural').length}</span>
                 )}
                 {footprints.filter(f => f.source === 'osm-gis').length > 0 && (
                   <span style={{ color: '#34d399' }}>🌐 OSM: {footprints.filter(f => f.source === 'osm-gis').length}</span>

@@ -7,6 +7,9 @@ import { BuildingFootprintPanel } from './components/BuildingFootprintPanel';
 import { useBuildingFootprintStore } from './lib/building-footprint';
 import { RoadFootprintPanel } from './components/RoadFootprintPanel';
 import { useRoadFootprintStore } from './lib/road-footprint';
+import { CustomDataPanel } from './components/CustomDataPanel';
+import { useCustomDataStore } from './lib/custom-data';
+import QGISToolsPanel, { useGISToolsStore } from './components/QGISToolsPanel';
 
 /**
  * Calculates the cartographic Representative Fraction (RF) scale denominator
@@ -18,6 +21,62 @@ function getScaleDenominator(zoom: number, latDeg: number): number {
   const groundResolution = (earthCircumference * Math.cos(latRad)) / (256 * Math.pow(2, zoom));
   const metersPerPixelAt96DPI = 0.0254 / 96;
   return Math.max(1, Math.round(groundResolution / metersPerPixelAt96DPI));
+}
+
+/** GIS Tools toolbar button */
+function GISToolsButton() {
+  const { isOpen, toggle } = useGISToolsStore();
+  return (
+    <button
+      id="toggle-gis-tools-btn"
+      type="button"
+      className={`bld-ai-nav-toggle-btn ${isOpen ? 'active' : ''}`}
+      onClick={toggle}
+      aria-label="Toggle GIS Tools (QGIS-style)"
+      title="GIS exploration tools: Measure, Identify, Draw, Attribute Table, Statistics"
+      style={isOpen ? { borderColor: '#22c55e', background: 'rgba(34, 197, 94, 0.15)' } : undefined}
+    >
+      <span className="icon" style={{ color: isOpen ? '#22c55e' : undefined }}>compass_calibration</span>
+      <span className="ai-btn-text">GIS</span>
+    </button>
+  );
+}
+
+/**
+ * TIF-Only basemap toggle.
+ *
+ * When enabled, every basemap tile layer (Esri Satellite, OSM, Carto...) is
+ * hidden so that ONLY the uploaded custom raster (GeoTIFF/TIF) data is visible.
+ * The button is disabled until a raster layer with a geo-referenced preview
+ * has been uploaded in the Custom Data panel.
+ */
+function TifOnlyButton() {
+  const { tifOnlyMode, toggleTifOnlyMode, layers } = useCustomDataStore();
+  const rasterLayers = layers.filter(l => l.layerType === 'raster' && l.rasterDataUrl && l.bounds);
+  const canToggle = rasterLayers.length > 0;
+
+  return (
+    <button
+      id="toggle-tif-only-btn"
+      type="button"
+      className={`tif-only-nav-toggle-btn ${tifOnlyMode ? 'active' : ''}`}
+      onClick={() => toggleTifOnlyMode()}
+      disabled={!canToggle}
+      aria-pressed={tifOnlyMode}
+      aria-label="Toggle TIF Only view (hide base map)"
+      title={
+        canToggle
+          ? tifOnlyMode
+            ? `TIF ONLY ON: base map hidden — showing ${rasterLayers.length} uploaded raster layer${rasterLayers.length > 1 ? 's' : ''} only. Click to restore the satellite basemap.`
+            : 'TIF ONLY: hide the Esri satellite/basemap and show only your uploaded TIF data'
+          : 'Upload a GeoTIFF (.tif) in the Data panel to enable TIF-only view'
+      }
+    >
+      <span className="icon">{tifOnlyMode ? 'image' : 'hide_image'}</span>
+      <span className="ai-btn-text">{tifOnlyMode ? 'TIF Only: ON' : 'TIF Only'}</span>
+      {canToggle && <span className="tif-only-badge">{rasterLayers.length}</span>}
+    </button>
+  );
 }
 
 function formatRF(zoom: number, latDeg: number): string {
@@ -65,6 +124,16 @@ function AppComponent() {
     togglePanel: toggleRoadPanel,
     roads: roadFootprints,
   } = useRoadFootprintStore();
+
+  const {
+    isPanelOpen: isDataPanelOpen,
+    togglePanel: toggleDataPanel,
+    layers: dataLayers,
+    tifOnlyMode,
+  } = useCustomDataStore();
+
+  // True while the user is showing uploaded custom raster data only (basemap hidden)
+  const activeRasterLayers = dataLayers.filter(l => l.layerType === 'raster' && l.visible);
 
   // Current active zoom, latitude, and Representative Fraction (RF) values
   const currentLat = leafletCenter[0];
@@ -166,8 +235,10 @@ function AppComponent() {
         {/* Map Engine & Basemap Brand Badge */}
         <div className="osm-brand-badge" id="osm-brand-badge">
           <span className="icon">satellite_alt</span>
-          <span className="osm-brand-text">
-            {leafletTileLayer === 'satellite-hybrid'
+          <span className={`osm-brand-text ${tifOnlyMode ? 'tif-only-active' : ''}`}>
+            {tifOnlyMode
+              ? `Custom TIF Only — ${activeRasterLayers.length} raster layer${activeRasterLayers.length === 1 ? '' : 's'} (basemap hidden)`
+              : leafletTileLayer === 'satellite-hybrid'
               ? 'Esri Satellite + Labels'
               : leafletTileLayer === 'satellite-pure'
               ? 'Esri Satellite'
@@ -335,6 +406,27 @@ function AppComponent() {
               </span>
             )}
           </button>
+
+          <button
+            id="toggle-data-panel-btn"
+            type="button"
+            className={`bld-ai-nav-toggle-btn ${isDataPanelOpen ? 'active' : ''}`}
+            onClick={toggleDataPanel}
+            aria-label="Toggle Custom Data Panel"
+            title="Upload & analyze custom geospatial data (GeoTIFF, GeoJSON, KML, CSV...)"
+            style={isDataPanelOpen ? { borderColor: '#60a5fa', background: 'rgba(96, 165, 250, 0.15)' } : undefined}
+          >
+            <span className="icon" style={{ color: isDataPanelOpen ? '#60a5fa' : undefined }}>folder_open</span>
+            <span className="ai-btn-text">Data</span>
+            {dataLayers.length > 0 && (
+              <span className="bld-active-badge" style={{ background: '#60a5fa' }}>
+                {dataLayers.length}
+              </span>
+            )}
+          </button>
+
+          <TifOnlyButton />
+          <GISToolsButton />
         </div>
       </div>
 
@@ -408,7 +500,7 @@ function AppComponent() {
           RF 1:{formatRF(leafletZoom, leafletCenter[0])}
         </span>
         <span className="stat-separator">•</span>
-        <span>Layer: {leafletTileLayer === 'osm' ? 'OpenStreetMap' : leafletTileLayer}</span>
+        <span>Layer: {tifOnlyMode ? 'Custom TIF Only' : leafletTileLayer === 'osm' ? 'OpenStreetMap' : leafletTileLayer}</span>
       </div>
 
       {/* Earth AI Vision Floating HUD Panel */}
@@ -447,6 +539,20 @@ function AppComponent() {
           if (zoom) setLeafletZoom(zoom);
         }}
       />
+
+      {/* Custom Data Upload & Analysis Panel */}
+      <CustomDataPanel
+        currentLat={currentLat}
+        currentLng={currentLng}
+        currentZoom={currentZoom}
+        onFocusCoordinates={(lat, lng, zoom) => {
+          setLeafletCenter([lat, lng]);
+          if (zoom) setLeafletZoom(zoom);
+        }}
+      />
+
+      {/* GIS Exploration Tools (QGIS-style) */}
+      <QGISToolsPanel />
     </div>
   );
 }
