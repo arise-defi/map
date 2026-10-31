@@ -169,7 +169,7 @@ function AppComponent() {
   // OpenStreetMap / Leaflet state - default to Esri Satellite + Labels (satellite-hybrid)
   const [leafletTileLayer, setLeafletTileLayer] = useState<MapTileLayerKey>('satellite-hybrid');
   const [showLabels, setShowLabels] = useState<boolean>(true);
-  const [leafletCenter, setLeafletCenter] = useState<[number, number]>([41.8781, -87.6298]);
+  const [leafletCenter, setLeafletCenter] = useState<[number, number]>([12.9716, 77.5946]);
   const [leafletZoom, setLeafletZoom] = useState<number>(18);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -260,7 +260,7 @@ function AppComponent() {
   };
 
   const handleResetCamera = () => {
-    setLeafletCenter([41.8781, -87.6298]);
+    setLeafletCenter([12.9716, 77.5946]);
     setLeafletZoom(14);
   };
 

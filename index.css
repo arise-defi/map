@@ -4412,7 +4412,7 @@ gmp-place-contextual-list-config {
   top: 68px;
   right: 16px;
   bottom: 16px;
-  width: 360px;
+  width: 440px;
   max-width: calc(100vw - 32px);
   background: rgba(15, 20, 28, 0.92);
   backdrop-filter: blur(20px);
@@ -6689,6 +6689,80 @@ gmp-place-contextual-list-config {
 
 .bld-cad-badge-pill:hover .cad-copy-icon {
   color: #00f0ff;
+}
+
+/* Tab Segmented Control */
+.bld-dm-segmented-control {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 4px;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  margin-top: 6px;
+  margin-bottom: 8px;
+}
+
+.bld-dm-seg-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.bld-dm-seg-btn .icon {
+  font-size: 13px;
+}
+
+.bld-dm-seg-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.bld-dm-seg-btn.active {
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.22), rgba(0, 137, 155, 0.28));
+  color: #00f0ff;
+  border: 1px solid rgba(0, 240, 255, 0.4);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.18);
+  font-weight: 700;
+}
+
+.bld-dm-schema-spec {
+  font-size: 9px;
+  color: #94a3b8;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 3px 6px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.bld-dm-live-badge {
+  display: inline-block;
+  font-size: 7.5px;
+  font-weight: 800;
+  color: #00f0ff;
+  background: rgba(0, 240, 255, 0.12);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+  border-radius: 3px;
+  padding: 1px 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 3px;
 }
 
 /* Tab Bar */

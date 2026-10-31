@@ -66,7 +66,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
   const [isPresetsExpanded, setIsPresetsExpanded] = useState(false);
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
   const [isStyleExpanded, setIsStyleExpanded] = useState(false);
-  const [floorDataTab, setFloorDataTab] = useState<'datamodel' | 'unit' | 'tax' | 'legal' | 'spatial'>('datamodel');
+  const [floorDataTab, setFloorDataTab] = useState<'datamodel' | 'cards' | 'spatial'>('datamodel');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleCopy = (text: string, key: string) => {
@@ -767,11 +767,11 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Data Model Section Tabs */}
-                <div className="bld-dm-tab-bar" role="tablist">
+                {/* 3-Segmented Switcher (Clean, Zero Horizontal Scroll) */}
+                <div className="bld-dm-segmented-control" role="tablist">
                   <button
                     type="button"
-                    className={`bld-dm-tab ${floorDataTab === 'datamodel' ? 'active' : ''}`}
+                    className={`bld-dm-seg-btn ${floorDataTab === 'datamodel' ? 'active' : ''}`}
                     onClick={() => setFloorDataTab('datamodel')}
                     title="View complete 9-table cadastral & property tax data model"
                   >
@@ -780,34 +780,16 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                   </button>
                   <button
                     type="button"
-                    className={`bld-dm-tab ${floorDataTab === 'unit' ? 'active' : ''}`}
-                    onClick={() => setFloorDataTab('unit')}
-                    title="View Land Parcel, Building, Unit & Segment"
+                    className={`bld-dm-seg-btn ${floorDataTab === 'cards' ? 'active' : ''}`}
+                    onClick={() => setFloorDataTab('cards')}
+                    title="View individual detail cards (Unit, Parcel, Tax, Owner, Legal)"
                   >
-                    <span className="icon">domain</span>
-                    <span>Parcel & Unit</span>
+                    <span className="icon">dashboard</span>
+                    <span>Cards View</span>
                   </button>
                   <button
                     type="button"
-                    className={`bld-dm-tab ${floorDataTab === 'tax' ? 'active' : ''}`}
-                    onClick={() => setFloorDataTab('tax')}
-                    title="View Assessment, Demand, and Receipt records"
-                  >
-                    <span className="icon">payments</span>
-                    <span>Tax & Demand</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`bld-dm-tab ${floorDataTab === 'legal' ? 'active' : ''}`}
-                    onClick={() => setFloorDataTab('legal')}
-                    title="View Owner History and Legal Petitions"
-                  >
-                    <span className="icon">gavel</span>
-                    <span>Owner & Legal</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`bld-dm-tab ${floorDataTab === 'spatial' ? 'active' : ''}`}
+                    className={`bld-dm-seg-btn ${floorDataTab === 'spatial' ? 'active' : ''}`}
                     onClick={() => setFloorDataTab('spatial')}
                     title="View spatial areas, elevation, and space utilization"
                   >
@@ -842,6 +824,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                             <span className="bld-table-tag parcel">parcel</span>
                           </td>
                           <td className="bld-dm-col-keys">
+                            <div className="bld-dm-schema-spec">ulpin (PK, business key), provisional_flag, survey_no, ward_id, locality_id, geom (MultiPolygon, 4326), road_id, road_class, corner_plot</div>
+                            <div className="bld-dm-live-badge">Live Record</div>
                             <div className="bld-dm-field-row">
                               <span className="col-name">ulpin:</span>
                               <strong className="col-val mono highlight">{floorDetail.cadastral.parcel.ulpin}</strong>
@@ -877,6 +861,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                             <span className="bld-table-tag building">building</span>
                           </td>
                           <td className="bld-dm-col-keys">
+                            <div className="bld-dm-schema-spec">building_no (ULPIN-Bnn), parcel_id, floors, height_m, footprint geom, dsm_height_m, oc_ref</div>
+                            <div className="bld-dm-live-badge">Live Record</div>
                             <div className="bld-dm-field-row">
                               <span className="col-name">building_no:</span>
                               <strong className="col-val mono">{floorDetail.cadastral.building.building_no}</strong>
@@ -909,6 +895,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                             <span className="bld-dm-active-pill">Active Floor</span>
                           </td>
                           <td className="bld-dm-col-keys">
+                            <div className="bld-dm-schema-spec">ptin, unit_no (ULPIN-Bnn-Unnnn), building_id, usage, occupancy, plinth_area, carpet_area, legacy_no[]</div>
+                            <div className="bld-dm-live-badge">Active Floor Unit Record</div>
                             <div className="bld-dm-field-row">
                               <span className="col-name">ptin:</span>
                               <strong className="col-val mono highlight">{floorDetail.cadastral.unit.ptin}</strong>
@@ -943,6 +931,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                             <span className="bld-table-tag segment">segment</span>
                           </td>
                           <td className="bld-dm-col-keys">
+                            <div className="bld-dm-schema-spec">unit_id, segment_type (ATM, kiosk, tower, hoarding), area_sqm, licence_ref</div>
+                            <div className="bld-dm-live-badge">Live Record</div>
                             <div className="bld-dm-field-row">
                               <span className="col-name">unit_id:</span>
                               <span className="col-val mono">{floorDetail.cadastral.segment.unit_id}</span>
@@ -969,6 +959,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                             <span className="bld-table-tag owner">owner_link</span>
                           </td>
                           <td className="bld-dm-col-keys">
+                            <div className="bld-dm-schema-spec">unit_id, party_id, share_pct, from_date, to_date, source (deed, mutation)</div>
+                            <div className="bld-dm-live-badge">Live Record</div>
                             <div className="bld-dm-field-row">
                               <span className="col-name">party_id:</span>
                               <span className="col-val mono">{floorDetail.cadastral.owner_link.party_id}</span>
@@ -997,6 +989,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                             <span className="bld-table-tag assessment">assessment</span>
                           </td>
                           <td className="bld-dm-col-keys">
+                            <div className="bld-dm-schema-spec">unit_id, type (new, re, back, self, revision), arv, tax_rates_version, effective_from, status, workflow_id</div>
+                            <div className="bld-dm-live-badge">Live Record</div>
                             <div className="bld-dm-field-row">
                               <span className="col-name">arv:</span>
                               <strong className="col-val" style={{ color: '#34d399' }}>₹ {floorDetail.cadastral.assessment.arv.toLocaleString()} / annum</strong>
@@ -1027,6 +1021,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                             <span className="bld-table-tag demand">demand</span>
                           </td>
                           <td className="bld-dm-col-keys">
+                            <div className="bld-dm-schema-spec">unit_id, period (H1/H2 yyyy), head (tax, cess, penalty, interest, arrear), amount, rebate, due_date, status</div>
+                            <div className="bld-dm-live-badge">Live Record</div>
                             <div className="bld-dm-field-row">
                               <span className="col-name">period:</span>
                               <span className="col-val font-semibold">{floorDetail.cadastral.demand.period}</span>
@@ -1057,6 +1053,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                             <span className="bld-table-tag receipt">receipt / adjustment</span>
                           </td>
                           <td className="bld-dm-col-keys">
+                            <div className="bld-dm-schema-spec">{'receipt_no, payment_ref, lines[{demand_id, amount}], channel, realised_at / adj_type, reason, approver'}</div>
+                            <div className="bld-dm-live-badge">Live Record</div>
                             <div className="bld-dm-field-row">
                               <span className="col-name">receipt_no:</span>
                               <strong className="col-val mono highlight">{floorDetail.cadastral.receipt_adjustment.receipt_no}</strong>
@@ -1087,6 +1085,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                             <span className="bld-table-tag notice">notice / petition</span>
                           </td>
                           <td className="bld-dm-col-keys">
+                            <div className="bld-dm-schema-spec">notice_type, served_at, served_by, geo_point / petition_no, grounds, lgl_case_ref</div>
+                            <div className="bld-dm-live-badge">Live Record</div>
                             <div className="bld-dm-field-row">
                               <span className="col-name">notice_type:</span>
                               <strong className="col-val">{floorDetail.cadastral.notice_petition.notice_type}</strong>
@@ -1115,8 +1115,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                   </div>
                 )}
 
-                {/* TAB 2: PARCEL & UNIT CARD VIEW */}
-                {floorDataTab === 'unit' && (
+                {/* TAB 2: ALL DETAILED CARDS VIEW */}
+                {floorDataTab === 'cards' && (
                   <div className="bld-dm-cards-stack">
                     {/* Unit Card */}
                     <div className="bld-cadastral-card">
@@ -1211,12 +1211,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
 
-                {/* TAB 3: TAX & ASSESSMENT */}
-                {floorDataTab === 'tax' && (
-                  <div className="bld-dm-cards-stack">
+                    {/* Assessment Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#34d399' }}>calculate</span>
@@ -1242,6 +1238,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       </div>
                     </div>
 
+                    {/* Demand Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#f59e0b' }}>receipt_long</span>
@@ -1271,6 +1268,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       </div>
                     </div>
 
+                    {/* Receipt Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#38bdf8' }}>verified</span>
@@ -1295,12 +1293,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                         </div>
                       </div>
                     </div>
-                  </div>
-                )}
 
-                {/* TAB 4: OWNERSHIP & LEGAL */}
-                {floorDataTab === 'legal' && (
-                  <div className="bld-dm-cards-stack">
+                    {/* Owner Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#00f0ff' }}>person</span>
@@ -1330,6 +1324,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       </div>
                     </div>
 
+                    {/* Notice Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#34d399' }}>policy</span>
@@ -1365,7 +1360,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                   </div>
                 )}
 
-                {/* TAB 5: SPATIAL & MEP METRICS */}
+                {/* TAB 3: SPATIAL & MEP METRICS */}
                 {floorDataTab === 'spatial' && (
                   <>
                     {/* Floor Metrics 4-Tile Grid */}

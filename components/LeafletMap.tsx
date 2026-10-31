@@ -382,10 +382,27 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const zoomDiff = Math.abs(currentZoom - zoom);
 
     if (distLat > 0.00005 || distLng > 0.00005 || zoomDiff > 0) {
-      map.flyTo(center, zoom, {
-        duration: 1.25,
-        easeLinearity: 0.25,
+      if (distLat > 0.05 || distLng > 0.05) {
+        // Fast instant relocation for long-distance city presets without tile freeze
+        map.setView(center, zoom, { animate: false });
+      } else {
+        // Smooth local fly-in for building/floor level inspection
+        map.flyTo(center, zoom, {
+          duration: 0.6,
+          easeLinearity: 0.25,
+        });
+      }
+
+      requestAnimationFrame(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
       });
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 150);
     }
   }, [center, zoom]);
 
@@ -1073,7 +1090,21 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
     };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+
+    let observer: ResizeObserver | null = null;
+    if (mapContainerRef.current) {
+      observer = new ResizeObserver(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      });
+      observer.observe(mapContainerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (observer) observer.disconnect();
+    };
   }, []);
 
   // ── TIF Only Mode: hide the base map so ONLY uploaded raster (TIF) data shows ──
