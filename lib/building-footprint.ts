@@ -218,6 +218,7 @@ interface BuildingFootprintState {
   setFilterCategory: (category: string) => void;
   setSortBy: (sort: 'area-desc' | 'area-asc' | 'conf-desc') => void;
   clearDetections: () => void;
+  cancelDetection: () => void;
   detectFootprints: (bounds: BoundingBox, zoom?: number) => Promise<BuildingFootprint[]>;
   exportGeoJSON: () => void;
   exportCSV: () => void;
@@ -549,8 +550,9 @@ out geom qt;`;
 
   if (!data || !data.elements) {
     const mirrors = [
-      'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+      'https://overpass.openstreetmap.fr/api/interpreter',
       'https://overpass.kumi.systems/api/interpreter',
+      'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
       'https://overpass-api.de/api/interpreter',
     ];
 
@@ -1137,8 +1139,9 @@ async function fetchOvertureMLFootprints(bounds: BoundingBox, indiaMode: boolean
 out geom qt;`;
 
     const mirrors = [
-      'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+      'https://overpass.openstreetmap.fr/api/interpreter',
       'https://overpass.kumi.systems/api/interpreter',
+      'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
       'https://overpass-api.de/api/interpreter',
     ];
 
@@ -1151,6 +1154,7 @@ out geom qt;`;
             'User-Agent': 'BuildingFootprintAI/2.0 (ML-Precision-Mode)',
           },
           body: 'data=' + encodeURIComponent(query),
+          signal: AbortSignal.timeout(6000),
         });
         if (res.ok) {
           data = await res.json();
@@ -1501,11 +1505,14 @@ export function computeBuildingMetrics(footprints: BuildingFootprint[], bounds?:
 // Zustand Store Implementation
 // ---------------------------------------------------------------------------
 
+// Active detection abort controller (module-level so it persists across renders)
+let _detectionAbortController: AbortController | null = null;
+
 export const useBuildingFootprintStore = create<BuildingFootprintState>((set, get) => ({
   isPanelOpen: false,
   isDetecting: false,
   detectionMode: 'viewport',
-  detectionEngine: 'hybrid',
+  detectionEngine: 'overture-ml',
   indiaMode: true, // Enabled by default for ultra-high Indian accuracy
   roiBox: null,
   footprints: [],
@@ -1596,7 +1603,22 @@ export const useBuildingFootprintStore = create<BuildingFootprintState>((set, ge
       detectionError: null,
     }),
 
+  cancelDetection: () => {
+    if (_detectionAbortController) {
+      _detectionAbortController.abort();
+      _detectionAbortController = null;
+    }
+    set({ isDetecting: false, detectionError: null });
+  },
+
   detectFootprints: async (bounds: BoundingBox, zoom: number = 19) => {
+    // Cancel any previous in-flight detection
+    if (_detectionAbortController) {
+      _detectionAbortController.abort();
+    }
+    _detectionAbortController = new AbortController();
+    const signal = _detectionAbortController.signal;
+
     const { detectionEngine, indiaMode, visualSettings } = get();
     const { geometryMode, detectionDensity } = visualSettings;
     set({ isDetecting: true, detectionError: null, lastDetectedBounds: bounds });
@@ -1716,6 +1738,12 @@ export const useBuildingFootprintStore = create<BuildingFootprintState>((set, ge
         results = customRasterFootprints;
       }
 
+      // If cancelled while processing, bail out silently
+      if (signal.aborted) {
+        return [];
+      }
+
+      _detectionAbortController = null;
       set({
         footprints: results,
         isDetecting: false,
@@ -1725,6 +1753,11 @@ export const useBuildingFootprintStore = create<BuildingFootprintState>((set, ge
 
       return results;
     } catch (err: any) {
+      // If aborted by user, don't show error
+      if (signal.aborted) {
+        return [];
+      }
+      _detectionAbortController = null;
       set({
         isDetecting: false,
         detectionError: `Detection failed: ${err.message || 'Network error'}`,

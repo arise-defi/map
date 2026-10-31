@@ -144,6 +144,7 @@ out geom qt;`;
       }
 
       const mirrors = [
+        'https://overpass.openstreetmap.fr/api/interpreter',
         'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
         'https://overpass.kumi.systems/api/interpreter',
         'https://overpass-api.de/api/interpreter',
@@ -152,7 +153,7 @@ out geom qt;`;
       for (const mirror of mirrors) {
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 25000);
+          const timeout = setTimeout(() => controller.abort(), 8000);
 
           const apiRes = await fetch(mirror, {
             method: 'POST',
@@ -203,6 +204,7 @@ out geom qt;`;
 out geom qt;`;
 
       const mirrors = [
+        'https://overpass.openstreetmap.fr/api/interpreter',
         'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
         'https://overpass.kumi.systems/api/interpreter',
         'https://overpass-api.de/api/interpreter',
@@ -211,7 +213,7 @@ out geom qt;`;
       for (const mirror of mirrors) {
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 30000);
+          const timeout = setTimeout(() => controller.abort(), 8000);
 
           const apiRes = await fetch(mirror, {
             method: 'POST',
@@ -260,6 +262,7 @@ out geom qt;`;
       }
 
       const mirrors = [
+        'https://overpass.openstreetmap.fr/api/interpreter',
         'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
         'https://overpass.kumi.systems/api/interpreter',
         'https://overpass-api.de/api/interpreter',
@@ -268,7 +271,7 @@ out geom qt;`;
       for (const mirror of mirrors) {
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 25000);
+          const timeout = setTimeout(() => controller.abort(), 8000);
           const apiRes = await fetch(mirror, {
             method: 'POST',
             headers: {
@@ -316,6 +319,7 @@ out geom qt;`;
       }
 
       const mirrors = [
+        'https://overpass.openstreetmap.fr/api/interpreter',
         'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
         'https://overpass.kumi.systems/api/interpreter',
         'https://overpass-api.de/api/interpreter',
@@ -324,7 +328,7 @@ out geom qt;`;
       for (const mirror of mirrors) {
         try {
           const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 30000);
+          const timeout = setTimeout(() => controller.abort(), 8000);
           const apiRes = await fetch(mirror, {
             method: 'POST',
             headers: {
@@ -363,7 +367,7 @@ out geom qt;`;
       }
 
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 25000);
+      const timeout = setTimeout(() => controller.abort(), 8000);
 
       const fetchOptions: RequestInit = {
         method: req.method,

@@ -50,6 +50,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
     setFilterCategory,
     setSortBy,
     clearDetections,
+    cancelDetection,
     detectFootprints,
     exportGeoJSON,
     exportCSV,
@@ -63,6 +64,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
   } = useBuildingFootprintStore();
 
   const [isPresetsExpanded, setIsPresetsExpanded] = useState(false);
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
+  const [isStyleExpanded, setIsStyleExpanded] = useState(false);
   const [floorDataTab, setFloorDataTab] = useState<'datamodel' | 'unit' | 'tax' | 'legal' | 'spatial'>('datamodel');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -229,19 +232,6 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
     if (onFocusCoordinates) {
       onFocusCoordinates(p.lat, p.lng, p.zoom);
     }
-
-    const latSpan = (180 / Math.pow(2, p.zoom)) * 1.5;
-    const lonSpan = (360 / Math.pow(2, p.zoom)) * 2.2;
-    const bounds = {
-      south: p.lat - latSpan,
-      north: p.lat + latSpan,
-      west: p.lng - lonSpan,
-      east: p.lng + lonSpan,
-    };
-
-    setTimeout(() => {
-      detectFootprints(bounds, p.zoom);
-    }, 450);
   };
 
   const handleSelectMode = (mode: 'viewport' | 'roi-box' | 'point-tap') => {
@@ -358,225 +348,272 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
         </div>
       </div>
 
-      {/* India Quick Jump & Calibration Bar */}
-      <div className="bld-india-bar">
+      {/* Detect Button — always visible at top */}
+      <div className="bld-detect-bar">
         <button
           type="button"
-          className={`bld-india-mode-btn ${indiaMode ? 'active' : ''}`}
-          onClick={toggleIndiaMode}
-          title="Toggle India High-Density Mode (Party-wall separation, RCC terraces, tin sheets, and Gaj measurements)"
+          id="bld-run-scan-btn"
+          className={`bld-scan-action-btn ${isDetecting ? 'scanning' : ''}`}
+          onClick={isDetecting ? cancelDetection : handleScanCurrentView}
+
         >
-          <span className="icon">tune</span>
-          <span>{indiaMode ? '🇮🇳 India Calibration: ON' : 'Global Mode'}</span>
+          <span className="icon">{isDetecting ? 'stop_circle' : 'satellite_alt'}</span>
+          <span>{isDetecting ? 'Stop Detection' : 'Detect Building Footprints'}</span>
+          {isDetecting && <span className="bld-pulse-wave" />}
         </button>
 
-        <button
-          type="button"
-          className={`bld-presets-toggle-btn ${isPresetsExpanded ? 'active' : ''}`}
-          onClick={() => setIsPresetsExpanded(!isPresetsExpanded)}
-          title="Quick jump to Indian cities (Bengaluru, Delhi, Mumbai, Hyderabad, Pune, Ahmedabad)"
-        >
-          <span className="icon">explore</span>
-          <span>India Presets</span>
-          <span className="icon arrow-icon">{isPresetsExpanded ? 'expand_less' : 'expand_more'}</span>
-        </button>
+        {detectionMode === 'roi-box' && (
+          <div className="bld-mode-instruction" style={{ marginTop: 6 }}>
+            <span className="icon">info</span>
+            <span>Drag a rectangle on the map with your cursor to analyze that specific parcel.</span>
+          </div>
+        )}
+
+        {detectionMode === 'point-tap' && (
+          <div className="bld-mode-instruction" style={{ marginTop: 6 }}>
+            <span className="icon">info</span>
+            <span>Click on any rooftop in the satellite map to extract its footprint polygon.</span>
+          </div>
+        )}
       </div>
 
-      {/* India City Presets Drawer */}
-      {isPresetsExpanded && (
-        <div className="bld-presets-drawer">
-          <div className="bld-presets-title">
-            <span className="icon">travel_explore</span>
-            <span>Select Indian City to Test High Accuracy:</span>
+      {/* Collapsible Settings & Detection Options */}
+      <button
+        type="button"
+        className="bld-settings-toggle"
+        onClick={() => setIsSettingsExpanded(!isSettingsExpanded)}
+      >
+        <span className="bld-settings-toggle-left">
+          <span className="icon">tune</span>
+          <span>Settings & Detection Options</span>
+        </span>
+        <span className="icon arrow-icon">{isSettingsExpanded ? 'expand_less' : 'expand_more'}</span>
+      </button>
+
+      {isSettingsExpanded && (
+        <div className="bld-settings-content">
+          {/* India Quick Jump & Calibration Bar */}
+          <div className="bld-india-bar">
+            <button
+              type="button"
+              className={`bld-india-mode-btn ${indiaMode ? 'active' : ''}`}
+              onClick={toggleIndiaMode}
+              title="Toggle India High-Density Mode (Party-wall separation, RCC terraces, tin sheets, and Gaj measurements)"
+            >
+              <span className="icon">tune</span>
+              <span>{indiaMode ? '🇮🇳 India Calibration: ON' : 'Global Mode'}</span>
+            </button>
+
+            <button
+              type="button"
+              className={`bld-presets-toggle-btn ${isPresetsExpanded ? 'active' : ''}`}
+              onClick={() => setIsPresetsExpanded(!isPresetsExpanded)}
+              title="Quick jump to Indian cities (Bengaluru, Delhi, Mumbai, Hyderabad, Pune, Ahmedabad)"
+            >
+              <span className="icon">explore</span>
+              <span>India Presets</span>
+              <span className="icon arrow-icon">{isPresetsExpanded ? 'expand_less' : 'expand_more'}</span>
+            </button>
           </div>
-          <div className="bld-presets-grid">
-            {INDIA_CITY_PRESETS.map((p) => (
+
+          {/* India City Presets Drawer */}
+          {isPresetsExpanded && (
+            <div className="bld-presets-drawer">
+              <div className="bld-presets-title">
+                <span className="icon">travel_explore</span>
+                <span>Select Indian City to Test High Accuracy:</span>
+              </div>
+              <div className="bld-presets-grid">
+                {INDIA_CITY_PRESETS.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="bld-preset-chip"
+                    onClick={() => handleSelectPreset(p)}
+                    title={p.description}
+                  >
+                    <strong>{p.city}</strong>
+                    <span className="preset-area">{p.name.split('(')[0]}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Detection Mode & Engine Selector */}
+          <div className="bld-controls-section">
+            <div className="bld-mode-tabs" role="tablist">
               <button
-                key={p.id}
                 type="button"
-                className="bld-preset-chip"
-                onClick={() => handleSelectPreset(p)}
-                title={p.description}
+                role="tab"
+                aria-selected={detectionMode === 'viewport'}
+                className={`bld-mode-tab ${detectionMode === 'viewport' ? 'active' : ''}`}
+                onClick={() => handleSelectMode('viewport')}
+                title="Detect footprints across current map viewport"
               >
-                <strong>{p.city}</strong>
-                <span className="preset-area">{p.name.split('(')[0]}</span>
+                <span className="icon">crop_free</span>
+                <span>Current View</span>
               </button>
-            ))}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={detectionMode === 'roi-box'}
+                className={`bld-mode-tab ${detectionMode === 'roi-box' ? 'active' : ''}`}
+                onClick={() => handleSelectMode('roi-box')}
+                title="Click and drag on the map to draw a custom bounding box"
+              >
+                <span className="icon">highlight_alt</span>
+                <span>Draw ROI Box</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={detectionMode === 'point-tap'}
+                className={`bld-mode-tab ${detectionMode === 'point-tap' ? 'active' : ''}`}
+                onClick={() => handleSelectMode('point-tap')}
+                title="Click directly on any building on the map to segment its footprint"
+              >
+                <span className="icon">touch_app</span>
+                <span>Point & Tap</span>
+              </button>
+            </div>
+
+            <div className="bld-engine-row">
+              <label htmlFor="bld-engine-select" className="bld-engine-label">
+                <span className="icon">psychology</span>
+                <span>AI Engine:</span>
+              </label>
+              <select
+                id="bld-engine-select"
+                className="bld-engine-select"
+                value={detectionEngine}
+                onChange={(e) => setDetectionEngine(e.target.value as any)}
+              >
+                <option value="hybrid">⚡ Auto-Hybrid (ML + GIS + CV + Florence-2 Fusion)</option>
+                <option value="florence2-neural">🧠 Florence-2 Neural (Microsoft Building Segmentation)</option>
+                <option value="overture-ml">🎯 ML Precision (Microsoft/Overture ML Polygons)</option>
+                <option value="osm-gis">🌐 OSM GIS Ground Truth (Hand-traced Cadastral)</option>
+                <option value="cv-optical">🛰️ Optical Satellite AI (Party-Wall Decoupler)</option>
+              </select>
+            </div>
+
+            {/* Geometry, Density & 3D Options */}
+            <div className="bld-options-grid">
+              <div className="bld-option-group">
+                <span className="bld-opt-label">View 3D:</span>
+                <div className="bld-pill-group">
+                  <button
+                    type="button"
+                    className={`bld-pill-btn ${!visualSettings.show3D ? 'active' : ''}`}
+                    onClick={() => setVisualSettings({ show3D: false, fillOpacity: 0.05 })}
+                    title="2D Cadastral Vector Outlines (Reference satellite style)"
+                  >
+                    📐 2D
+                  </button>
+                  <button
+                    type="button"
+                    className={`bld-pill-btn bld-3d-btn ${visualSettings.show3D ? 'active' : ''}`}
+                    onClick={() => setVisualSettings({ show3D: true, fillOpacity: 0.35 })}
+                    title="3D Building Extrusions with facade lighting and shadows"
+                  >
+                    🏢 3D
+                  </button>
+                </div>
+              </div>
+
+              <div className="bld-option-group">
+                <span className="bld-opt-label">Geometry:</span>
+                <div className="bld-pill-group">
+                  <button
+                    type="button"
+                    className={`bld-pill-btn ${visualSettings.geometryMode === 'obb' ? 'active' : ''}`}
+                    onClick={() => setGeometryMode('obb')}
+                    title="Oriented Bounding Box: Rotated rectangular architectural footprints (Matches reference image)"
+                  >
+                    📐 OBB
+                  </button>
+                  <button
+                    type="button"
+                    className={`bld-pill-btn ${visualSettings.geometryMode === 'hybrid' ? 'active' : ''}`}
+                    onClick={() => setGeometryMode('hybrid')}
+                    title="Smart Hybrid: Rotated rectangles for buildings and regularized contours for complex shapes"
+                  >
+                    ⚡ Hybrid
+                  </button>
+                  <button
+                    type="button"
+                    className={`bld-pill-btn ${visualSettings.geometryMode === 'contour' ? 'active' : ''}`}
+                    onClick={() => setGeometryMode('contour')}
+                    title="Polygonal Contours: Multi-vertex contours conforming to complex L/T structures"
+                  >
+                    🔷 Poly
+                  </button>
+                </div>
+              </div>
+
+              <div className="bld-option-group">
+                <span className="bld-opt-label">Coverage:</span>
+                <div className="bld-pill-group">
+                  <button
+                    type="button"
+                    className={`bld-pill-btn ${visualSettings.detectionDensity === 'ultra-dense' ? 'active' : ''}`}
+                    onClick={() => setDetectionDensity('ultra-dense')}
+                    title="Ultra-Dense: Captures all roofs, sheds, terrace mumties, and warehouses (Matches reference image)"
+                  >
+                    🔥 Dense
+                  </button>
+                  <button
+                    type="button"
+                    className={`bld-pill-btn ${visualSettings.detectionDensity === 'standard' ? 'active' : ''}`}
+                    onClick={() => setDetectionDensity('standard')}
+                    title="Standard: Focus on primary residential & commercial dwellings"
+                  >
+                    Std
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 3D Extrusion Sub-Controls Bar (Visible when 3D is active) */}
+            {visualSettings.show3D && (
+              <div className="bld-3d-subcontrols">
+                <div className="bld-3d-sub-row">
+                  <span className="bld-3d-label">
+                    <span className="icon" style={{ fontSize: 13, color: '#00f0ff' }}>view_in_ar</span>
+                    <span>3D Height:</span>
+                  </span>
+                  <div className="bld-pill-group">
+                    {[1.0, 1.5, 2.0, 3.0].map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={`bld-pill-btn-sm ${visualSettings.heightScale === s ? 'active' : ''}`}
+                        onClick={() => setHeightScale(s)}
+                        title={`Set building extrusion height scale to ${s}x`}
+                      >
+                        {s}x
+                      </button>
+                    ))}
+                  </div>
+
+                  <label className="bld-3d-toggle-label" title="Render architectural floor banding lines on building facades">
+                    <input
+                      type="checkbox"
+                      checked={visualSettings.showFloorBands}
+                      onChange={toggleFloorBands}
+                    />
+                    <span className="bld-toggle-box" />
+                    <span className="bld-toggle-text">Floors</span>
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Detection Mode & Engine Selector */}
-      <div className="bld-controls-section">
-        <div className="bld-mode-tabs" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={detectionMode === 'viewport'}
-            className={`bld-mode-tab ${detectionMode === 'viewport' ? 'active' : ''}`}
-            onClick={() => handleSelectMode('viewport')}
-            title="Detect footprints across current map viewport"
-          >
-            <span className="icon">crop_free</span>
-            <span>Current View</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={detectionMode === 'roi-box'}
-            className={`bld-mode-tab ${detectionMode === 'roi-box' ? 'active' : ''}`}
-            onClick={() => handleSelectMode('roi-box')}
-            title="Click and drag on the map to draw a custom bounding box"
-          >
-            <span className="icon">highlight_alt</span>
-            <span>Draw ROI Box</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={detectionMode === 'point-tap'}
-            className={`bld-mode-tab ${detectionMode === 'point-tap' ? 'active' : ''}`}
-            onClick={() => handleSelectMode('point-tap')}
-            title="Click directly on any building on the map to segment its footprint"
-          >
-            <span className="icon">touch_app</span>
-            <span>Point & Tap</span>
-          </button>
-        </div>
-
-        <div className="bld-engine-row">
-          <label htmlFor="bld-engine-select" className="bld-engine-label">
-            <span className="icon">psychology</span>
-            <span>AI Engine:</span>
-          </label>
-          <select
-            id="bld-engine-select"
-            className="bld-engine-select"
-            value={detectionEngine}
-            onChange={(e) => setDetectionEngine(e.target.value as any)}
-          >
-            <option value="hybrid">⚡ Auto-Hybrid (ML + GIS + CV + Florence-2 Fusion)</option>
-            <option value="florence2-neural">🧠 Florence-2 Neural (Microsoft Building Segmentation)</option>
-            <option value="overture-ml">🎯 ML Precision (Microsoft/Overture ML Polygons)</option>
-            <option value="osm-gis">🌐 OSM GIS Ground Truth (Hand-traced Cadastral)</option>
-            <option value="cv-optical">🛰️ Optical Satellite AI (Party-Wall Decoupler)</option>
-          </select>
-        </div>
-
-        {/* Geometry, Density & 3D Options */}
-        <div className="bld-options-grid">
-          <div className="bld-option-group">
-            <span className="bld-opt-label">View 3D:</span>
-            <div className="bld-pill-group">
-              <button
-                type="button"
-                className={`bld-pill-btn ${!visualSettings.show3D ? 'active' : ''}`}
-                onClick={() => setVisualSettings({ show3D: false, fillOpacity: 0.05 })}
-                title="2D Cadastral Vector Outlines (Reference satellite style)"
-              >
-                📐 2D
-              </button>
-              <button
-                type="button"
-                className={`bld-pill-btn bld-3d-btn ${visualSettings.show3D ? 'active' : ''}`}
-                onClick={() => setVisualSettings({ show3D: true, fillOpacity: 0.35 })}
-                title="3D Building Extrusions with facade lighting and shadows"
-              >
-                🏢 3D
-              </button>
-            </div>
-          </div>
-
-          <div className="bld-option-group">
-            <span className="bld-opt-label">Geometry:</span>
-            <div className="bld-pill-group">
-              <button
-                type="button"
-                className={`bld-pill-btn ${visualSettings.geometryMode === 'obb' ? 'active' : ''}`}
-                onClick={() => setGeometryMode('obb')}
-                title="Oriented Bounding Box: Rotated rectangular architectural footprints (Matches reference image)"
-              >
-                📐 OBB
-              </button>
-              <button
-                type="button"
-                className={`bld-pill-btn ${visualSettings.geometryMode === 'hybrid' ? 'active' : ''}`}
-                onClick={() => setGeometryMode('hybrid')}
-                title="Smart Hybrid: Rotated rectangles for buildings and regularized contours for complex shapes"
-              >
-                ⚡ Hybrid
-              </button>
-              <button
-                type="button"
-                className={`bld-pill-btn ${visualSettings.geometryMode === 'contour' ? 'active' : ''}`}
-                onClick={() => setGeometryMode('contour')}
-                title="Polygonal Contours: Multi-vertex contours conforming to complex L/T structures"
-              >
-                🔷 Poly
-              </button>
-            </div>
-          </div>
-
-          <div className="bld-option-group">
-            <span className="bld-opt-label">Coverage:</span>
-            <div className="bld-pill-group">
-              <button
-                type="button"
-                className={`bld-pill-btn ${visualSettings.detectionDensity === 'ultra-dense' ? 'active' : ''}`}
-                onClick={() => setDetectionDensity('ultra-dense')}
-                title="Ultra-Dense: Captures all roofs, sheds, terrace mumties, and warehouses (Matches reference image)"
-              >
-                🔥 Dense
-              </button>
-              <button
-                type="button"
-                className={`bld-pill-btn ${visualSettings.detectionDensity === 'standard' ? 'active' : ''}`}
-                onClick={() => setDetectionDensity('standard')}
-                title="Standard: Focus on primary residential & commercial dwellings"
-              >
-                Std
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* 3D Extrusion Sub-Controls Bar (Visible when 3D is active) */}
-        {visualSettings.show3D && (
-          <div className="bld-3d-subcontrols">
-            <div className="bld-3d-sub-row">
-              <span className="bld-3d-label">
-                <span className="icon" style={{ fontSize: 13, color: '#00f0ff' }}>view_in_ar</span>
-                <span>3D Height:</span>
-              </span>
-              <div className="bld-pill-group">
-                {[1.0, 1.5, 2.0, 3.0].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className={`bld-pill-btn-sm ${visualSettings.heightScale === s ? 'active' : ''}`}
-                    onClick={() => setHeightScale(s)}
-                    title={`Set building extrusion height scale to ${s}x`}
-                  >
-                    {s}x
-                  </button>
-                ))}
-              </div>
-
-              <label className="bld-3d-toggle-label" title="Render architectural floor banding lines on building facades">
-                <input
-                  type="checkbox"
-                  checked={visualSettings.showFloorBands}
-                  onChange={toggleFloorBands}
-                />
-                <span className="bld-toggle-box" />
-                <span className="bld-toggle-text">Floors</span>
-              </label>
-            </div>
-          </div>
-        )}
-
-        {/* Story/Floor Selector & Inspection Studio (Visible when a building is selected in 3D mode) */}
-        {visualSettings.show3D && selectedBuilding && (selectedBuilding.estimated_floors || 1) >= 2 && (
+      {/* Story/Floor Selector & Inspection Studio (Visible when a building is selected in 3D mode) */}
+      {visualSettings.show3D && selectedBuilding && (selectedBuilding.estimated_floors || 1) >= 2 && (
           <div className="bld-story-selector" id="bld-story-selector">
             <div className="bld-story-header">
               <div className="bld-story-header-left">
@@ -1458,33 +1495,6 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
           </div>
         )}
 
-        <button
-          type="button"
-          id="bld-run-scan-btn"
-          className={`bld-scan-action-btn ${isDetecting ? 'scanning' : ''}`}
-          onClick={handleScanCurrentView}
-          disabled={isDetecting}
-        >
-          <span className="icon">{isDetecting ? 'hourglass_top' : 'satellite_alt'}</span>
-          <span>{isDetecting ? 'Extracting Footprints...' : 'Detect Building Footprints'}</span>
-          {isDetecting && <span className="bld-pulse-wave" />}
-        </button>
-
-        {detectionMode === 'roi-box' && (
-          <div className="bld-mode-instruction">
-            <span className="icon">info</span>
-            <span>Drag a rectangle on the map with your cursor to analyze that specific parcel.</span>
-          </div>
-        )}
-
-        {detectionMode === 'point-tap' && (
-          <div className="bld-mode-instruction">
-            <span className="icon">info</span>
-            <span>Click on any rooftop in the satellite map to extract its footprint polygon.</span>
-          </div>
-        )}
-      </div>
-
       {detectionError && (
         <div className="bld-alert-box">
           <span className="icon">info</span>
@@ -1492,57 +1502,30 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
         </div>
       )}
 
+
       {/* Main Content Area */}
       <div className="bld-body-scrollable">
         {footprints.length > 0 ? (
           <>
-            {/* KPI Cards Grid */}
-            <div className="bld-kpi-grid">
-              {/* Total Buildings Card */}
-              <div className="bld-kpi-card">
-                <div className="bld-kpi-header">
-                  <span className="icon">domain</span>
-                  <span className="bld-kpi-label">Buildings</span>
-                </div>
-                <div className="bld-kpi-value">
-                  {metrics.totalCount}
-                  <span className="bld-kpi-sub">plots</span>
-                </div>
-                <div className="bld-kpi-footer">
-                  <span>Avg {metrics.avgAreaGaj.toLocaleString()} Gaj</span>
-                  <span>•</span>
-                  <span>{metrics.avgFloors} fl</span>
-                </div>
+            {/* Compact KPI Summary Bar */}
+            <div className="bld-kpi-compact">
+              <div className="bld-kpi-stat">
+                <span className="icon">domain</span>
+                <strong>{metrics.totalCount}</strong>
+                <span>plots</span>
+                <span className="bld-kpi-detail">Avg {metrics.avgAreaGaj.toLocaleString()} Gaj &bull; {metrics.avgFloors} fl</span>
               </div>
-
-              {/* Total Rooftop Area Card */}
-              <div className="bld-kpi-card">
-                <div className="bld-kpi-header">
-                  <span className="icon">square_foot</span>
-                  <span className="bld-kpi-label">Total Built Area</span>
-                </div>
-                <div className="bld-kpi-value">
-                  {metrics.totalAreaGaj.toLocaleString()}
-                  <span className="bld-kpi-sub">Gaj</span>
-                </div>
-                <div className="bld-kpi-footer">
-                  <span>{metrics.totalAreaSqm.toLocaleString()} m²</span>
-                </div>
+              <div className="bld-kpi-divider" />
+              <div className="bld-kpi-stat">
+                <span className="icon">square_foot</span>
+                <strong>{metrics.totalAreaGaj.toLocaleString()}</strong>
+                <span>Gaj</span>
               </div>
-
-              {/* Lot Coverage Ratio */}
-              <div className="bld-kpi-card">
-                <div className="bld-kpi-header">
-                  <span className="icon">pie_chart</span>
-                  <span className="bld-kpi-label">Lot Coverage</span>
-                </div>
-                <div className="bld-kpi-value">
-                  {metrics.lotCoveragePct}%
-                  <span className="bld-kpi-sub">density</span>
-                </div>
-                <div className="bld-kpi-footer">
-                  <span>Built-up ratio</span>
-                </div>
+              <div className="bld-kpi-divider" />
+              <div className="bld-kpi-stat">
+                <span className="icon">pie_chart</span>
+                <strong>{metrics.lotCoveragePct}%</strong>
+                <span>coverage</span>
               </div>
             </div>
 
@@ -1632,7 +1615,16 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
               </div>
             </div>
 
-            {/* Visual Styling Toolbar */}
+            {/* Collapsible Visual Style Section */}
+            <button type="button" className="bld-style-toggle" onClick={() => setIsStyleExpanded(!isStyleExpanded)}>
+              <span className="bld-style-toggle-left">
+                <span className="icon">palette</span>
+                <span>Visual Style</span>
+              </span>
+              <span className="icon arrow-icon">{isStyleExpanded ? 'expand_less' : 'expand_more'}</span>
+            </button>
+
+            {isStyleExpanded && (
             <div className="bld-visual-toolbar">
               <div className="bld-ref-style-banner">
                 <button
@@ -1717,6 +1709,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                 </div>
               </div>
             </div>
+            )}
 
             {/* Search & Sort Controls */}
             <div className="bld-filter-row">
