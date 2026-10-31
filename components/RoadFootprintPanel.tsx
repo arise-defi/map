@@ -240,7 +240,6 @@ export const RoadFootprintPanel: React.FC<RoadFootprintPanelProps> = ({
           className={`bld-scan-action-btn ${isDetecting ? 'scanning' : ''}`}
           onClick={handleScanCurrentView}
           disabled={isDetecting}
-          style={{ background: isDetecting ? undefined : 'linear-gradient(135deg, #f97316, #ea580c)' }}
         >
           <span className="icon">{isDetecting ? 'hourglass_top' : 'route'}</span>
           <span>{isDetecting ? 'Extracting Road Network...' : 'Detect Road Footprints'}</span>

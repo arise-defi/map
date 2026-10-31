@@ -292,22 +292,6 @@ function AppComponent() {
 
       {/* Top Floating Explorer Bar */}
       <div className="map-top-bar" id="map-top-bar">
-        {/* Map Engine & Basemap Brand Badge */}
-        <div className="osm-brand-badge" id="osm-brand-badge">
-          <span className="icon">satellite_alt</span>
-          <span className={`osm-brand-text ${tifOnlyMode ? 'tif-only-active' : ''}`}>
-            {tifOnlyMode
-              ? `Custom TIF Only — ${activeRasterLayers.length} raster layer${activeRasterLayers.length === 1 ? '' : 's'} (basemap hidden)`
-              : leafletTileLayer === 'satellite-hybrid'
-              ? 'Esri Satellite + Labels'
-              : leafletTileLayer === 'satellite-pure'
-              ? 'Esri Satellite'
-              : leafletTileLayer === 'osm'
-              ? 'OpenStreetMap'
-              : leafletTileLayer}
-          </span>
-        </div>
-
         {/* Location Search Form */}
         <form className="map-search-form" onSubmit={handleSearch} id="search-form">
           <span className="icon search-icon">search</span>

@@ -8413,3 +8413,190 @@ gmp-place-contextual-list-config {
 :root.light-theme .bld-dm-row-card {
   border-bottom-color: #e2e8f0;
 }
+
+
+/* ============================================================
+   HAKE TECHNOLOGIES BRAND BUTTON & CHROMATIC STYLES
+   (According to Hake Technologies Colour & Typography Guide)
+   ============================================================ */
+
+:root {
+  --hake-navy: #0E3A52;
+  --hake-teal: #1B8C77;
+  --hake-saffron: #D98A2B;
+  --hake-green: #3D8D51;
+  --hake-red: #B23A2E;
+  --hake-logo-navy: #032065;
+  --hake-sidebar: #071532;
+  --hake-mist: #80A0AF;
+  --hake-cream: #F7F5F1;
+  --font-sans: "Noto Sans", Calibri, Arial, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, monospace;
+}
+
+/* 1. Primary Call-To-Action (CTA) Button: Saffron (#D98A2B) with Deep Navy Text (#071532) */
+.bld-scan-action-btn {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #E69838 0%, #D98A2B 55%, #C2771F 100%);
+  color: var(--hake-sidebar, #071532) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-sans, "Noto Sans", system-ui, sans-serif);
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(217, 138, 43, 0.42), 0 1px 3px rgba(7, 21, 50, 0.25);
+  transition: all 0.22s ease;
+  overflow: hidden;
+  letter-spacing: 0.2px;
+}
+
+.bld-scan-action-btn .icon {
+  font-size: 18px;
+  color: var(--hake-sidebar, #071532) !important;
+  transition: transform 0.2s ease;
+}
+
+.bld-scan-action-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #F0A546 0%, #E69838 60%, #D98A2B 100%);
+  color: var(--hake-logo-navy, #032065) !important;
+  box-shadow: 0 6px 22px rgba(217, 138, 43, 0.58), 0 0 14px rgba(217, 138, 43, 0.32);
+  transform: translateY(-1px);
+}
+
+.bld-scan-action-btn:hover:not(:disabled) .icon {
+  color: var(--hake-logo-navy, #032065) !important;
+  transform: scale(1.08);
+}
+
+.bld-scan-action-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(217, 138, 43, 0.35);
+}
+
+.bld-scan-action-btn:disabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
+
+/* When Running Extraction / Stop Detection: Alert Red (#B23A2E) with White Text */
+.bld-scan-action-btn.scanning {
+  background: linear-gradient(135deg, #B23A2E 0%, #96281E 100%) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  box-shadow: 0 4px 18px rgba(178, 58, 46, 0.55), 0 0 22px rgba(178, 58, 46, 0.35) !important;
+}
+
+.bld-scan-action-btn.scanning .icon {
+  color: #ffffff !important;
+}
+
+.bld-scan-action-btn.scanning:hover:not(:disabled) {
+  background: linear-gradient(135deg, #C94235 0%, #A82A1F 100%) !important;
+  box-shadow: 0 6px 24px rgba(178, 58, 46, 0.72) !important;
+  color: #ffffff !important;
+}
+
+.bld-scan-action-btn.scanning:hover:not(:disabled) .icon {
+  color: #ffffff !important;
+}
+
+/* 2. Secondary 3D Camera Action Button: Hake Teal (#1B8C77) */
+.bld-floor-cam-btn.primary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #1B8C77 0%, #146E5D 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  padding: 5px 10px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  flex: 1;
+  box-shadow: 0 2px 8px rgba(27, 140, 119, 0.4);
+  transition: all 0.15s ease;
+}
+
+.bld-floor-cam-btn.primary:hover {
+  background: linear-gradient(135deg, #22A089 0%, #1B8C77 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(27, 140, 119, 0.58);
+  color: #ffffff;
+}
+
+.bld-floor-cam-btn.primary .icon {
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.bld-floor-cam-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: linear-gradient(90deg, rgba(14, 58, 82, 0.45), rgba(27, 140, 119, 0.15));
+  border: 1px solid rgba(27, 140, 119, 0.35);
+  border-radius: 8px;
+}
+
+.bld-floor-zoom-pill:hover {
+  background: rgba(27, 140, 119, 0.25);
+  border-color: #1B8C77;
+  color: #ffffff;
+}
+
+/* 3. Export Buttons: Secondary Teal Accents */
+.bld-export-btn:hover,
+.bld-copy-btn:hover {
+  background: rgba(27, 140, 119, 0.22);
+  border-color: #1B8C77;
+  color: #ffffff;
+}
+
+/* 4. Mode Tabs: Active in Hake Teal */
+.bld-mode-tab.active {
+  background: rgba(27, 140, 119, 0.22);
+  border-color: #1B8C77;
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(27, 140, 119, 0.25);
+}
+
+.bld-mode-tab.active .icon {
+  color: #1B8C77;
+}
+
+/* 5. Segmented Control Active Button */
+.bld-dm-seg-btn.active {
+  background: linear-gradient(135deg, rgba(27, 140, 119, 0.4), rgba(14, 58, 82, 0.6));
+  color: #ffffff;
+  border-color: #1B8C77;
+  box-shadow: 0 2px 8px rgba(27, 140, 119, 0.3);
+  font-weight: 700;
+}
+
+/* 6. Indian Calibration Badge / Saffron Highlights */
+.bld-calib-toggle {
+  border-color: rgba(217, 138, 43, 0.45);
+}
+
+.bld-calib-status-badge {
+  color: #D98A2B;
+}
+
+/* 7. Success State: Check Green (#3D8D51) */
+.bld-success-badge,
+.col-tag-paid {
+  background: rgba(61, 141, 81, 0.22) !important;
+  color: #3D8D51 !important;
+  border-color: rgba(61, 141, 81, 0.45) !important;
+}
