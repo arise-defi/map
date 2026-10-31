@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useMapStore, useSettings } from './lib/state';
 import { LeafletMap, MapTileLayerKey, LeafletMarker } from './components/LeafletMap';
-import { EarthAIPanel } from './components/EarthAIPanel';
-import { useEarthAIStore } from './lib/earth-ai';
 import { BuildingFootprintPanel } from './components/BuildingFootprintPanel';
 import { useBuildingFootprintStore } from './lib/building-footprint';
 import { RoadFootprintPanel } from './components/RoadFootprintPanel';
@@ -10,6 +8,77 @@ import { useRoadFootprintStore } from './lib/road-footprint';
 import { CustomDataPanel } from './components/CustomDataPanel';
 import { useCustomDataStore } from './lib/custom-data';
 import QGISToolsPanel, { useGISToolsStore } from './components/QGISToolsPanel';
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  fallbackTitle?: string;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[ErrorBoundary caught]:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          zIndex: 99999,
+          background: 'rgba(20, 24, 33, 0.95)',
+          border: '1px solid #ef4444',
+          borderRadius: 12,
+          padding: '16px 20px',
+          color: '#ffffff',
+          maxWidth: 420,
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(8px)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8, color: '#f87171', fontWeight: 600 }}>
+            <span className="icon">warning</span>
+            <span>{this.props.fallbackTitle || 'Component Error Recovered'}</span>
+          </div>
+          <p style={{ margin: '0 0 12px 0', fontSize: 13, color: 'rgba(255, 255, 255, 0.7)' }}>
+            {this.state.error?.message || 'An unexpected rendering error occurred.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            style={{
+              background: '#ef4444',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 6,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /**
  * Calculates the cartographic Representative Fraction (RF) scale denominator
@@ -109,7 +178,6 @@ function AppComponent() {
 
   const { markers, setMarkers } = useMapStore();
   const { theme, setTheme } = useSettings();
-  const { isPanelOpen, togglePanel, currentResult, autoScan, analyzeTile } = useEarthAIStore();
   const {
     isPanelOpen: isBldPanelOpen,
     togglePanel: toggleBldPanel,
@@ -141,14 +209,6 @@ function AppComponent() {
   const currentZoom = leafletZoom;
   const currentRFDenom = getScaleDenominator(currentZoom, currentLat);
 
-  // Debounced auto-scan when map moves and autoScan is enabled
-  useEffect(() => {
-    if (!autoScan) return;
-    const timer = setTimeout(() => {
-      analyzeTile(currentLat, currentLng, Math.round(currentZoom), true);
-    }, 900);
-    return () => clearTimeout(timer);
-  }, [currentLat, currentLng, currentZoom, autoScan, analyzeTile]);
 
   // Handle location search via OpenStreetMap Nominatim
   const handleSearch = async (e: React.FormEvent) => {
@@ -343,22 +403,6 @@ function AppComponent() {
             <span className="icon">{theme === 'light' ? 'dark_mode' : 'light_mode'}</span>
           </button>
 
-          <button
-            id="toggle-earth-ai-btn"
-            type="button"
-            className={`earth-ai-nav-toggle-btn ${isPanelOpen ? 'active' : ''}`}
-            onClick={togglePanel}
-            aria-label="Toggle Earth AI Vision"
-            title="Open Earth AI Vision (SegFormer-B0 + YOLOv8n-seg)"
-          >
-            <span className="icon">radar</span>
-            <span className="ai-btn-text">Earth AI</span>
-            {currentResult && (
-              <span className="ai-active-badge">
-                {currentResult.homes_count}
-              </span>
-            )}
-          </button>
 
           <button
             id="toggle-bld-ai-btn"
@@ -503,31 +547,22 @@ function AppComponent() {
         <span>Layer: {tifOnlyMode ? 'Custom TIF Only' : leafletTileLayer === 'osm' ? 'OpenStreetMap' : leafletTileLayer}</span>
       </div>
 
-      {/* Earth AI Vision Floating HUD Panel */}
-      <EarthAIPanel
-        currentLat={currentLat}
-        currentLng={currentLng}
-        currentZoom={currentZoom}
-        currentRFDenom={currentRFDenom}
-        onFocusCoordinates={(lat, lng, zoom) => {
-          setLeafletCenter([lat, lng]);
-          if (zoom) setLeafletZoom(zoom);
-        }}
-      />
 
       {/* AI Building Footprints Studio Panel */}
-      <BuildingFootprintPanel
-        currentLat={currentLat}
-        currentLng={currentLng}
-        currentZoom={currentZoom}
-        onFocusCoordinates={(lat, lng, zoom) => {
-          setLeafletCenter([lat, lng]);
-          if (zoom) setLeafletZoom(zoom);
-        }}
-        onRequestDrawRoi={() => {
-          setBldDetectionMode('roi-box');
-        }}
-      />
+      <ErrorBoundary fallbackTitle="Building Footprints Notice">
+        <BuildingFootprintPanel
+          currentLat={currentLat}
+          currentLng={currentLng}
+          currentZoom={currentZoom}
+          onFocusCoordinates={(lat, lng, zoom) => {
+            setLeafletCenter([lat, lng]);
+            if (zoom) setLeafletZoom(zoom);
+          }}
+          onRequestDrawRoi={() => {
+            setBldDetectionMode('roi-box');
+          }}
+        />
+      </ErrorBoundary>
 
       {/* AI Road Footprints Panel */}
       <RoadFootprintPanel
@@ -573,7 +608,9 @@ function App() {
 
   return (
     <div className="App">
-      <AppComponent />
+      <ErrorBoundary fallbackTitle="Application Notice">
+        <AppComponent />
+      </ErrorBoundary>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   INDIA_CITY_PRESETS,
   IndiaCityPreset,
 } from '../lib/building-footprint';
+import { getCadastralDataForFloor, CadastralFloorDataModel } from '../lib/cadastral-model';
 
 interface BuildingFootprintPanelProps {
   currentLat: number;
@@ -62,6 +63,16 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
   } = useBuildingFootprintStore();
 
   const [isPresetsExpanded, setIsPresetsExpanded] = useState(false);
+  const [floorDataTab, setFloorDataTab] = useState<'datamodel' | 'unit' | 'tax' | 'legal' | 'spatial'>('datamodel');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const handleCopy = (text: string, key: string) => {
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 1800);
+    }
+  };
 
   const metrics = useMemo(() => {
     return computeBuildingMetrics(footprints, lastDetectedBounds);
@@ -101,7 +112,99 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
     return list;
   }, [footprints, filterCategory, searchQuery, sortBy]);
 
-  if (!isPanelOpen) return null;
+  const floorDetail = useMemo(() => {
+    if (!selectedBuilding || !selectedStoryIndex) return null;
+    const totalFloors = Math.min(10, selectedBuilding.estimated_floors || 1);
+    const floorNum = selectedStoryIndex;
+    const floorLabel = floorNum === 1 ? 'G' : `${floorNum - 1}F`;
+    const totalHeight = selectedBuilding.estimated_height_m || totalFloors * 3.5;
+    const storyHeight = Math.round((totalHeight / totalFloors) * 10) / 10;
+    const baseElevation = Math.round((floorNum - 1) * storyHeight * 10) / 10;
+    const ceilingElevation = Math.round(floorNum * storyHeight * 10) / 10;
+    const areaSqm = Math.round(selectedBuilding.area_sqm || 0);
+    const areaSqft = Math.round(selectedBuilding.area_sqft || areaSqm * 10.7639);
+    const areaGaj = Math.round(selectedBuilding.area_gaj || areaSqm * 1.196);
+
+    const usablePct = 84;
+    const corePct = 12;
+    const utilPct = 4;
+    const usableSqm = Math.round((areaSqm * usablePct) / 100);
+    const coreSqm = Math.round((areaSqm * corePct) / 100);
+    const utilSqm = Math.max(1, areaSqm - usableSqm - coreSqm);
+    const perimeterM = Math.round(selectedBuilding.perimeter_m || Math.sqrt(areaSqm) * 4);
+
+    let funcName = `Building Level ${floorNum} (${floorLabel})`;
+    let funcSubtitle = 'Standard tenant floorplate with 360° perimeter natural lighting';
+    let funcIcon = 'apartment';
+    let capacityText = `~${Math.max(2, Math.round(usableSqm / 15))} occupants`;
+    let subCapacity = 'Estimated density @ 15 m² per person';
+
+    if (floorNum === 1) {
+      funcName = 'Ground Level (G) — Main Entrance & Public Realm';
+      funcSubtitle = 'Pedestrian lobby, reception desk, security gates, vehicle drop-off & utility core';
+      funcIcon = 'meeting_room';
+      capacityText = 'High-Traffic Entrance Core';
+      subCapacity = 'Public access, elevator banks & service bay';
+    } else if (floorNum === totalFloors) {
+      funcName = `Rooftop & Penthouse Level (${floorLabel})`;
+      funcSubtitle = 'Executive suites, private panoramic terrace, mechanical HVAC access & mumty feed';
+      funcIcon = 'roofing';
+      capacityText = 'Penthouse & Terrace Lounge';
+      subCapacity = 'Skyline panoramic exposure, stairhead core';
+    } else if (selectedBuilding.classification === 'Commercial') {
+      funcName = `Corporate Commercial Office (${floorLabel})`;
+      funcSubtitle = 'Open-plan agile workstations, executive boardrooms, breakout lounge & server pantry';
+      funcIcon = 'corporate_fare';
+      const desks = Math.round(usableSqm / 9.5);
+      capacityText = `~${desks} Workstations`;
+      subCapacity = 'Standard BOMA office density (~9.5 m²/desk)';
+    } else if (selectedBuilding.classification === 'Industrial') {
+      funcName = `Industrial Production & Logistics (${floorLabel})`;
+      funcSubtitle = 'Reinforced load-bearing concrete floor, freight elevator access, staging area';
+      funcIcon = 'precision_manufacturing';
+      capacityText = `~${Math.max(4, Math.round(usableSqm / 30))} Industrial Staff`;
+      subCapacity = 'Heavy machinery & freight corridor rating';
+    } else if (
+      selectedBuilding.classification === 'Residential' ||
+      selectedBuilding.classification === 'Builder Floor' ||
+      selectedBuilding.classification === 'Independent House'
+    ) {
+      funcName = `Residential Living Floorplate (${floorLabel})`;
+      funcSubtitle = 'Private residential living quarters, balconies, bedrooms, kitchen & dining suites';
+      funcIcon = 'holiday_village';
+      const units = Math.max(1, Math.round(usableSqm / 110));
+      const residents = Math.max(2, Math.round(usableSqm / 32));
+      capacityText = `~${units} Apt ${units === 1 ? 'Unit' : 'Units'} (~${residents} Residents)`;
+      subCapacity = `Spacious ${Math.round(usableSqm / units)} m² floorplan per unit`;
+    }
+
+    const cadastral = getCadastralDataForFloor(selectedBuilding, floorNum, totalFloors);
+
+    return {
+      floorNum,
+      floorLabel,
+      totalFloors,
+      storyHeight,
+      baseElevation,
+      ceilingElevation,
+      areaSqm,
+      areaSqft,
+      areaGaj,
+      usableSqm,
+      coreSqm,
+      utilSqm,
+      usablePct,
+      corePct,
+      utilPct,
+      perimeterM,
+      funcName,
+      funcSubtitle,
+      funcIcon,
+      capacityText,
+      subCapacity,
+      cadastral,
+    };
+  }, [selectedBuilding, selectedStoryIndex]);
 
   const handleScanCurrentView = () => {
     const { currentMapBounds } = useBuildingFootprintStore.getState();
@@ -150,8 +253,58 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
 
   const handleSelectBuilding = (b: BuildingFootprint) => {
     setSelectedFootprintId(b.id);
-    if (onFocusCoordinates) {
+    if (onFocusCoordinates && b.centroid && typeof b.centroid[1] === 'number') {
       onFocusCoordinates(b.centroid[1], b.centroid[0], Math.min(18, Math.max(currentZoom, 18)));
+    }
+  };
+
+  const handleSelectFloor = (floorNum: number) => {
+    const isDeselecting = selectedStoryIndex === floorNum;
+    const nextStory = isDeselecting ? null : floorNum;
+    setSelectedStoryIndex(nextStory);
+
+    if (nextStory && selectedBuilding && selectedBuilding.centroid && onFocusCoordinates) {
+      const heightScale = visualSettings.heightScale || 1.5;
+      const h = Math.max(3.0, selectedBuilding.estimated_height_m || 3.5) * heightScale;
+      const totalFloors = Math.min(10, selectedBuilding.estimated_floors || 1);
+      const fracMid = (nextStory - 0.5) / totalFloors;
+      const offsetLat = h * 0.000009 * fracMid;
+      const offsetLng = h * 0.000006 * fracMid;
+
+      const floorLat = selectedBuilding.centroid[1] + offsetLat;
+      const floorLng = selectedBuilding.centroid[0] + offsetLng;
+
+      // Smoothly fly 3D camera right into that floor at close inspection zoom 20
+      onFocusCoordinates(floorLat, floorLng, 20);
+    }
+  };
+
+  const handleFlyToFloor = (zoomLevel: number = 20) => {
+    if (!selectedBuilding || !selectedBuilding.centroid || !selectedStoryIndex || !onFocusCoordinates) return;
+    const heightScale = visualSettings.heightScale || 1.5;
+    const h = Math.max(3.0, selectedBuilding.estimated_height_m || 3.5) * heightScale;
+    const totalFloors = Math.min(10, selectedBuilding.estimated_floors || 1);
+    const fracMid = (selectedStoryIndex - 0.5) / totalFloors;
+    const offsetLat = h * 0.000009 * fracMid;
+    const offsetLng = h * 0.000006 * fracMid;
+
+    onFocusCoordinates(selectedBuilding.centroid[1] + offsetLat, selectedBuilding.centroid[0] + offsetLng, zoomLevel);
+  };
+
+  const handleNextFloor = () => {
+    if (!selectedBuilding) return;
+    const totalFloors = Math.min(10, selectedBuilding.estimated_floors || 1);
+    const current = selectedStoryIndex || 1;
+    if (current < totalFloors) {
+      handleSelectFloor(current + 1);
+    }
+  };
+
+  const handlePrevFloor = () => {
+    if (!selectedBuilding) return;
+    const current = selectedStoryIndex || 1;
+    if (current > 1) {
+      handleSelectFloor(current - 1);
     }
   };
 
@@ -163,6 +316,8 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
     { label: 'Emerald', value: '#10b981' },
     { label: 'Purple', value: '#a855f7' },
   ];
+
+  if (!isPanelOpen) return null;
 
   return (
     <aside className="bld-panel" id="bld-footprint-panel" aria-label="AI Building Footprint Detection">
@@ -420,23 +575,52 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
           </div>
         )}
 
-        {/* Story/Floor Selector (Visible when a building is selected in 3D mode) */}
+        {/* Story/Floor Selector & Inspection Studio (Visible when a building is selected in 3D mode) */}
         {visualSettings.show3D && selectedBuilding && (selectedBuilding.estimated_floors || 1) >= 2 && (
           <div className="bld-story-selector" id="bld-story-selector">
             <div className="bld-story-header">
-              <span className="icon" style={{ fontSize: 14, color: '#00f0ff' }}>layers</span>
-              <span className="bld-story-title">Select Floor — {selectedBuilding.name || selectedBuilding.id}</span>
+              <div className="bld-story-header-left">
+                <span className="icon" style={{ fontSize: 16, color: '#00f0ff' }}>layers</span>
+                <div className="bld-story-title-box">
+                  <span className="bld-story-title">Floor Explorer — {selectedBuilding.name || selectedBuilding.id}</span>
+                  <span className="bld-story-subtitle">
+                    {selectedBuilding.estimated_floors} Floors • ~{selectedBuilding.estimated_height_m}m Total Height
+                  </span>
+                </div>
+              </div>
               {selectedStoryIndex && (
-                <button
-                  type="button"
-                  className="bld-story-clear-btn"
-                  onClick={() => setSelectedStoryIndex(null)}
-                  title="Clear floor selection (show whole building)"
-                >
-                  <span className="icon" style={{ fontSize: 13 }}>close</span>
-                </button>
+                <div className="bld-story-header-actions">
+                  <button
+                    type="button"
+                    className="bld-story-step-btn"
+                    onClick={handlePrevFloor}
+                    disabled={selectedStoryIndex <= 1}
+                    title="Step down to lower floor"
+                  >
+                    <span className="icon">keyboard_arrow_down</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="bld-story-step-btn"
+                    onClick={handleNextFloor}
+                    disabled={selectedStoryIndex >= Math.min(10, selectedBuilding.estimated_floors || 1)}
+                    title="Step up to higher floor"
+                  >
+                    <span className="icon">keyboard_arrow_up</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="bld-story-clear-btn"
+                    onClick={() => setSelectedStoryIndex(null)}
+                    title="Clear floor selection (show whole building)"
+                  >
+                    <span className="icon" style={{ fontSize: 13 }}>close</span>
+                  </button>
+                </div>
               )}
             </div>
+
+            {/* Quick Floor Selector Buttons */}
             <div className="bld-story-floors">
               {Array.from({ length: Math.min(10, selectedBuilding.estimated_floors || 1) }, (_, i) => {
                 const floorNum = i + 1;
@@ -447,23 +631,828 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                     key={floorNum}
                     type="button"
                     className={`bld-story-floor-btn ${isActive ? 'active' : ''}`}
-                    onClick={() => setSelectedStoryIndex(isActive ? null : floorNum)}
-                    title={`${isActive ? 'Deselect' : 'Select'} Floor ${floorNum} (${floorLabel})`}
+                    onClick={() => handleSelectFloor(floorNum)}
+                    title={`${isActive ? 'Deselect' : 'Select & Fly into'} Floor ${floorNum} (${floorLabel})`}
                   >
                     <span className="bld-story-floor-num">{floorLabel}</span>
-                    <span className="bld-story-floor-sub">Floor {floorNum}</span>
+                    <span className="bld-story-floor-sub">L{floorNum}</span>
+                    {isActive && <span className="bld-floor-active-dot" />}
                   </button>
                 );
               })}
             </div>
-            {selectedStoryIndex && (
-              <div className="bld-story-info">
-                <span className="icon" style={{ fontSize: 12, color: '#00f0ff' }}>info</span>
-                <span>
-                  Floor {selectedStoryIndex} of {selectedBuilding.estimated_floors} •{' '}
-                  ~{Math.round((selectedBuilding.area_sqm || 0))} m² per floor •{' '}
-                  ~{Math.round(((selectedBuilding.estimated_height_m || 3.5) / (selectedBuilding.estimated_floors || 1)) * 10) / 10}m height
-                </span>
+
+            {/* Detailed Floor Inspection Card */}
+            {floorDetail ? (
+              <div className="bld-floor-detail-card" id="bld-floor-detail-card">
+                {/* Floor Header & Functional Identity */}
+                <div className="bld-floor-hero">
+                  <div className="bld-floor-hero-badge">
+                    <span className="floor-badge-text">{floorDetail.floorLabel}</span>
+                    <span className="floor-badge-sub">Level {floorDetail.floorNum}</span>
+                  </div>
+                  <div className="bld-floor-hero-info">
+                    <div className="bld-floor-hero-title">
+                      <span className="icon" style={{ fontSize: 15, color: '#00f0ff' }}>{floorDetail.funcIcon}</span>
+                      <strong>{floorDetail.funcName}</strong>
+                    </div>
+                    <div className="bld-floor-hero-sub">{floorDetail.funcSubtitle}</div>
+                  </div>
+                </div>
+
+                {/* 3D Camera Controls Bar */}
+                <div className="bld-floor-cam-bar">
+                  <button
+                    type="button"
+                    className="bld-floor-cam-btn primary"
+                    onClick={() => handleFlyToFloor(20)}
+                    title="Smoothly fly 3D camera into this floor at 20x zoom"
+                  >
+                    <span className="icon">videocam</span>
+                    <span>3D Camera: Fly into Floor {floorDetail.floorNum}</span>
+                  </button>
+                  <div className="bld-floor-zoom-presets">
+                    <button
+                      type="button"
+                      className="bld-floor-zoom-pill"
+                      onClick={() => handleFlyToFloor(21)}
+                      title="Ultra close-up interior view (21x)"
+                    >
+                      21x Interior
+                    </button>
+                    <button
+                      type="button"
+                      className="bld-floor-zoom-pill"
+                      onClick={() => handleFlyToFloor(19)}
+                      title="Street level view (19x)"
+                    >
+                      19x Street
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cadastral Key Identifiers Strip */}
+                <div className="bld-floor-cadastral-strip">
+                  <div
+                    className="bld-cad-badge-pill"
+                    onClick={() => handleCopy(floorDetail.cadastral.parcel.ulpin, 'ulpin')}
+                    title="Click to copy Unique Land Parcel Identification Number (ULPIN)"
+                  >
+                    <span className="cad-label">ULPIN</span>
+                    <span className="cad-val">{floorDetail.cadastral.parcel.ulpin}</span>
+                    <span className="icon cad-copy-icon">
+                      {copiedKey === 'ulpin' ? 'check' : 'content_copy'}
+                    </span>
+                  </div>
+
+                  <div
+                    className="bld-cad-badge-pill"
+                    onClick={() => handleCopy(floorDetail.cadastral.unit.ptin, 'ptin')}
+                    title="Click to copy Property Tax Identification Number (PTIN)"
+                  >
+                    <span className="cad-label">PTIN</span>
+                    <span className="cad-val">{floorDetail.cadastral.unit.ptin}</span>
+                    <span className="icon cad-copy-icon">
+                      {copiedKey === 'ptin' ? 'check' : 'content_copy'}
+                    </span>
+                  </div>
+
+                  <div
+                    className="bld-cad-badge-pill"
+                    onClick={() => handleCopy(floorDetail.cadastral.unit.unit_no, 'unit')}
+                    title="Click to copy Unit Number (ULPIN-Bnn-Unnnn)"
+                  >
+                    <span className="cad-label">UNIT NO</span>
+                    <span className="cad-val">{floorDetail.cadastral?.unit?.unit_no ? floorDetail.cadastral.unit.unit_no.split('-').slice(-2).join('-') : 'U0101'}</span>
+                    <span className="icon cad-copy-icon">
+                      {copiedKey === 'unit' ? 'check' : 'content_copy'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Data Model Section Tabs */}
+                <div className="bld-dm-tab-bar" role="tablist">
+                  <button
+                    type="button"
+                    className={`bld-dm-tab ${floorDataTab === 'datamodel' ? 'active' : ''}`}
+                    onClick={() => setFloorDataTab('datamodel')}
+                    title="View complete 9-table cadastral & property tax data model"
+                  >
+                    <span className="icon">table_chart</span>
+                    <span>Data Model (9 Tables)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`bld-dm-tab ${floorDataTab === 'unit' ? 'active' : ''}`}
+                    onClick={() => setFloorDataTab('unit')}
+                    title="View Land Parcel, Building, Unit & Segment"
+                  >
+                    <span className="icon">domain</span>
+                    <span>Parcel & Unit</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`bld-dm-tab ${floorDataTab === 'tax' ? 'active' : ''}`}
+                    onClick={() => setFloorDataTab('tax')}
+                    title="View Assessment, Demand, and Receipt records"
+                  >
+                    <span className="icon">payments</span>
+                    <span>Tax & Demand</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`bld-dm-tab ${floorDataTab === 'legal' ? 'active' : ''}`}
+                    onClick={() => setFloorDataTab('legal')}
+                    title="View Owner History and Legal Petitions"
+                  >
+                    <span className="icon">gavel</span>
+                    <span>Owner & Legal</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`bld-dm-tab ${floorDataTab === 'spatial' ? 'active' : ''}`}
+                    onClick={() => setFloorDataTab('spatial')}
+                    title="View spatial areas, elevation, and space utilization"
+                  >
+                    <span className="icon">straighten</span>
+                    <span>Spatial & MEP</span>
+                  </button>
+                </div>
+
+                {/* TAB 1: Complete 9-Table Data Model Grid (Directly matching user diagram) */}
+                {floorDataTab === 'datamodel' && (
+                  <div className="bld-datamodel-table-wrap">
+                    <div className="bld-dm-table-header-row">
+                      <div className="bld-dm-title-left">
+                        <span className="icon" style={{ fontSize: 14, color: '#00f0ff' }}>account_tree</span>
+                        <strong className="bld-dm-head-title">Data Model — Land Parcel & Floor Tax Record</strong>
+                      </div>
+                      <span className="bld-dm-records-badge">9 Tables Linked</span>
+                    </div>
+
+                    <table className="bld-dm-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '20%' }}>Table</th>
+                          <th style={{ width: '52%' }}>Key columns & Live Records</th>
+                          <th style={{ width: '28%' }}>Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {/* 1. PARCEL */}
+                        <tr>
+                          <td className="bld-dm-col-table">
+                            <span className="bld-table-tag parcel">parcel</span>
+                          </td>
+                          <td className="bld-dm-col-keys">
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">ulpin:</span>
+                              <strong className="col-val mono highlight">{floorDetail.cadastral.parcel.ulpin}</strong>
+                              <span className="col-flag">{floorDetail.cadastral.parcel.provisional_flag ? 'Provisional' : 'PK (State Registry)'}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">survey_no:</span>
+                              <span className="col-val">{floorDetail.cadastral.parcel.survey_no}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>ward_id:</span>
+                              <span className="col-val">{floorDetail.cadastral.parcel.ward_id}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">locality_id:</span>
+                              <span className="col-val">{floorDetail.cadastral.parcel.locality_id}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>road_id:</span>
+                              <span className="col-val">{floorDetail.cadastral.parcel.road_id} ({floorDetail.cadastral.parcel.road_class})</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">corner_plot:</span>
+                              <span className="col-val">{floorDetail.cadastral.parcel.corner_plot ? 'true (Corner Plot)' : 'false'}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>geom:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.parcel.geom}</span>
+                            </div>
+                          </td>
+                          <td className="bld-dm-col-notes">
+                            <div className="bld-note-text">One per land parcel; ULPIN from state registry or provisional</div>
+                          </td>
+                        </tr>
+
+                        {/* 2. BUILDING */}
+                        <tr>
+                          <td className="bld-dm-col-table">
+                            <span className="bld-table-tag building">building</span>
+                          </td>
+                          <td className="bld-dm-col-keys">
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">building_no:</span>
+                              <strong className="col-val mono">{floorDetail.cadastral.building.building_no}</strong>
+                              <span className="col-tag">ULPIN-Bnn</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">parcel_id:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.building.parcel_id}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>floors:</span>
+                              <span className="col-val">{floorDetail.cadastral.building.floors} fl</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>height_m:</span>
+                              <span className="col-val">{floorDetail.cadastral.building.height_m}m</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">dsm_height_m:</span>
+                              <strong className="col-val" style={{ color: '#38bdf8' }}>{floorDetail.cadastral.building.dsm_height_m}m</strong>
+                              <span className="col-name" style={{ marginLeft: 6 }}>oc_ref:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.building.oc_ref}</span>
+                            </div>
+                          </td>
+                          <td className="bld-dm-col-notes">
+                            <div className="bld-note-text">Height cross-checked with nDSM</div>
+                          </td>
+                        </tr>
+
+                        {/* 3. UNIT */}
+                        <tr className="bld-dm-row-active-unit">
+                          <td className="bld-dm-col-table">
+                            <span className="bld-table-tag unit">unit</span>
+                            <span className="bld-dm-active-pill">Active Floor</span>
+                          </td>
+                          <td className="bld-dm-col-keys">
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">ptin:</span>
+                              <strong className="col-val mono highlight">{floorDetail.cadastral.unit.ptin}</strong>
+                              <span className="col-name" style={{ marginLeft: 6 }}>unit_no:</span>
+                              <strong className="col-val mono">{floorDetail.cadastral.unit.unit_no}</strong>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">usage:</span>
+                              <span className="col-val">{floorDetail.cadastral.unit.usage}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>occupancy:</span>
+                              <span className="col-val">{floorDetail.cadastral.unit.occupancy}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">plinth_area:</span>
+                              <span className="col-val"><strong>{floorDetail.cadastral.unit.plinth_area_sqm} m²</strong> ({floorDetail.cadastral.unit.plinth_area_sqft.toLocaleString()} sq ft)</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>carpet_area:</span>
+                              <span className="col-val"><strong>{floorDetail.cadastral.unit.carpet_area_sqm} m²</strong></span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">legacy_no[]:</span>
+                              <span className="col-val mono">[{Array.isArray(floorDetail.cadastral?.unit?.legacy_no) ? floorDetail.cadastral.unit.legacy_no.join(', ') : ''}]</span>
+                            </div>
+                          </td>
+                          <td className="bld-dm-col-notes">
+                            <div className="bld-note-text">Assessable unit; PTIN from state platform</div>
+                          </td>
+                        </tr>
+
+                        {/* 4. SEGMENT */}
+                        <tr>
+                          <td className="bld-dm-col-table">
+                            <span className="bld-table-tag segment">segment</span>
+                          </td>
+                          <td className="bld-dm-col-keys">
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">unit_id:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.segment.unit_id}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">segment_type:</span>
+                              <strong className="col-val" style={{ color: '#fbbf24' }}>{floorDetail.cadastral.segment.segment_type}</strong>
+                              <span className="col-name" style={{ marginLeft: 6 }}>area_sqm:</span>
+                              <span className="col-val"><strong>{floorDetail.cadastral.segment.area_sqm} m²</strong></span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">licence_ref:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.segment.licence_ref}</span>
+                            </div>
+                          </td>
+                          <td className="bld-dm-col-notes">
+                            <div className="bld-note-text">Part-area use taxed on its own area</div>
+                          </td>
+                        </tr>
+
+                        {/* 5. OWNER_LINK */}
+                        <tr>
+                          <td className="bld-dm-col-table">
+                            <span className="bld-table-tag owner">owner_link</span>
+                          </td>
+                          <td className="bld-dm-col-keys">
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">party_id:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.owner_link.party_id}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>name:</span>
+                              <strong className="col-val">{floorDetail.cadastral.owner_link.party_name}</strong>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">share_pct:</span>
+                              <span className="col-val">{floorDetail.cadastral.owner_link.share_pct}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>validity:</span>
+                              <span className="col-val">{floorDetail.cadastral.owner_link.from_date} to {floorDetail.cadastral.owner_link.to_date}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">source:</span>
+                              <span className="col-val">{floorDetail.cadastral.owner_link.source}</span>
+                            </div>
+                          </td>
+                          <td className="bld-dm-col-notes">
+                            <div className="bld-note-text">Ownership history; party in citizen master</div>
+                          </td>
+                        </tr>
+
+                        {/* 6. ASSESSMENT */}
+                        <tr>
+                          <td className="bld-dm-col-table">
+                            <span className="bld-table-tag assessment">assessment</span>
+                          </td>
+                          <td className="bld-dm-col-keys">
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">arv:</span>
+                              <strong className="col-val" style={{ color: '#34d399' }}>₹ {floorDetail.cadastral.assessment.arv.toLocaleString()} / annum</strong>
+                              <span className="col-name" style={{ marginLeft: 6 }}>type:</span>
+                              <span className="col-val">{floorDetail.cadastral.assessment.type}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">tax_rates_version:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.assessment.tax_rates_version}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>effective_from:</span>
+                              <span className="col-val">{floorDetail.cadastral.assessment.effective_from}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">status:</span>
+                              <span className="col-val" style={{ color: '#34d399' }}>{floorDetail.cadastral.assessment.status}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>workflow_id:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.assessment.workflow_id}</span>
+                            </div>
+                          </td>
+                          <td className="bld-dm-col-notes">
+                            <div className="bld-note-text">Calculated by rules engine DMN</div>
+                          </td>
+                        </tr>
+
+                        {/* 7. DEMAND */}
+                        <tr>
+                          <td className="bld-dm-col-table">
+                            <span className="bld-table-tag demand">demand</span>
+                          </td>
+                          <td className="bld-dm-col-keys">
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">period:</span>
+                              <span className="col-val font-semibold">{floorDetail.cadastral.demand.period}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>due_date:</span>
+                              <span className="col-val">{floorDetail.cadastral.demand.due_date}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">head:</span>
+                              <span className="col-val">{floorDetail.cadastral.demand.head}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">amount:</span>
+                              <strong className="col-val">₹ {floorDetail.cadastral.demand.amount.toLocaleString()}</strong>
+                              <span className="col-name" style={{ marginLeft: 6 }}>rebate:</span>
+                              <span className="col-val" style={{ color: '#34d399' }}>-₹ {floorDetail.cadastral.demand.rebate.toLocaleString()}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>status:</span>
+                              <span className="col-tag-paid">{floorDetail.cadastral.demand.status}</span>
+                            </div>
+                          </td>
+                          <td className="bld-dm-col-notes">
+                            <div className="bld-note-text">Immutable lines; corrections by adjustment</div>
+                          </td>
+                        </tr>
+
+                        {/* 8. RECEIPT / ADJUSTMENT */}
+                        <tr>
+                          <td className="bld-dm-col-table">
+                            <span className="bld-table-tag receipt">receipt / adjustment</span>
+                          </td>
+                          <td className="bld-dm-col-keys">
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">receipt_no:</span>
+                              <strong className="col-val mono highlight">{floorDetail.cadastral.receipt_adjustment.receipt_no}</strong>
+                              <span className="col-name" style={{ marginLeft: 6 }}>channel:</span>
+                              <span className="col-val">{floorDetail.cadastral.receipt_adjustment.channel}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">payment_ref:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.receipt_adjustment.payment_ref}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>realised_at:</span>
+                              <span className="col-val">{floorDetail.cadastral.receipt_adjustment.realised_at}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">approver:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.receipt_adjustment.approver}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>adj_type:</span>
+                              <span className="col-val">{floorDetail.cadastral.receipt_adjustment.adj_type}</span>
+                            </div>
+                          </td>
+                          <td className="bld-dm-col-notes">
+                            <div className="bld-note-text">Maker-checker on adjustments</div>
+                          </td>
+                        </tr>
+
+                        {/* 9. NOTICE / PETITION */}
+                        <tr>
+                          <td className="bld-dm-col-table">
+                            <span className="bld-table-tag notice">notice / petition</span>
+                          </td>
+                          <td className="bld-dm-col-keys">
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">notice_type:</span>
+                              <strong className="col-val">{floorDetail.cadastral.notice_petition.notice_type}</strong>
+                              <span className="col-name" style={{ marginLeft: 6 }}>served_at:</span>
+                              <span className="col-val">{floorDetail.cadastral.notice_petition.served_at}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">served_by:</span>
+                              <span className="col-val">{floorDetail.cadastral.notice_petition.served_by}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>geo_point:</span>
+                              <span className="col-val mono">{floorDetail.cadastral.notice_petition.geo_point}</span>
+                            </div>
+                            <div className="bld-dm-field-row">
+                              <span className="col-name">petition_no:</span>
+                              <span className="col-val" style={{ color: '#34d399' }}>{floorDetail.cadastral.notice_petition.petition_no}</span>
+                              <span className="col-name" style={{ marginLeft: 6 }}>lgl_case_ref:</span>
+                              <span className="col-val">{floorDetail.cadastral.notice_petition.lgl_case_ref}</span>
+                            </div>
+                          </td>
+                          <td className="bld-dm-col-notes">
+                            <div className="bld-note-text">Petitions become Legal cases (I-17)</div>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* TAB 2: PARCEL & UNIT CARD VIEW */}
+                {floorDataTab === 'unit' && (
+                  <div className="bld-dm-cards-stack">
+                    {/* Unit Card */}
+                    <div className="bld-cadastral-card">
+                      <div className="bld-cad-card-head">
+                        <span className="icon" style={{ color: '#00f0ff' }}>apartment</span>
+                        <strong>Assessable Unit Record — {floorDetail.cadastral.unit.unit_no}</strong>
+                      </div>
+                      <div className="bld-cad-card-grid">
+                        <div className="cad-field">
+                          <span className="field-k">PTIN (State Platform):</span>
+                          <span className="field-v mono highlight">{floorDetail.cadastral.unit.ptin}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Unit Number:</span>
+                          <span className="field-v mono">{floorDetail.cadastral.unit.unit_no}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Usage / Zone:</span>
+                          <span className="field-v">{floorDetail.cadastral.unit.usage}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Occupancy Status:</span>
+                          <span className="field-v">{floorDetail.cadastral.unit.occupancy}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Plinth Area:</span>
+                          <span className="field-v">{floorDetail.cadastral.unit.plinth_area_sqm} m² ({floorDetail.cadastral.unit.plinth_area_sqft.toLocaleString()} sq ft)</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Carpet Area:</span>
+                          <span className="field-v">{floorDetail.cadastral.unit.carpet_area_sqm} m² ({floorDetail.cadastral.unit.carpet_area_sqft.toLocaleString()} sq ft)</span>
+                        </div>
+                        <div className="cad-field full">
+                          <span className="field-k">Legacy Numbers:</span>
+                          <span className="field-v mono">{Array.isArray(floorDetail.cadastral?.unit?.legacy_no) ? floorDetail.cadastral.unit.legacy_no.join(' • ') : 'None'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Parcel Card */}
+                    <div className="bld-cadastral-card">
+                      <div className="bld-cad-card-head">
+                        <span className="icon" style={{ color: '#38bdf8' }}>terrain</span>
+                        <strong>Land Parcel Record — {floorDetail.cadastral.parcel.ulpin}</strong>
+                      </div>
+                      <div className="bld-cad-card-grid">
+                        <div className="cad-field">
+                          <span className="field-k">Survey Number:</span>
+                          <span className="field-v">{floorDetail.cadastral.parcel.survey_no}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Ward & Zone:</span>
+                          <span className="field-v">{floorDetail.cadastral.parcel.ward_id}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Locality:</span>
+                          <span className="field-v">{floorDetail.cadastral.parcel.locality_id}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Road Class:</span>
+                          <span className="field-v">{floorDetail.cadastral.parcel.road_class}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Corner Plot:</span>
+                          <span className="field-v">{floorDetail.cadastral.parcel.corner_plot ? 'Yes (Corner Advantage)' : 'Standard Mid-Block'}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Registry Status:</span>
+                          <span className="field-v" style={{ color: '#34d399' }}>Verified (Non-Provisional)</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Segment Card */}
+                    <div className="bld-cadastral-card">
+                      <div className="bld-cad-card-head">
+                        <span className="icon" style={{ color: '#fbbf24' }}>storefront</span>
+                        <strong>Part-Area Taxable Segment (Floor {floorDetail.floorNum})</strong>
+                      </div>
+                      <div className="bld-cad-card-grid">
+                        <div className="cad-field">
+                          <span className="field-k">Segment Type:</span>
+                          <span className="field-v font-bold">{floorDetail.cadastral.segment.segment_type}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Segment Area:</span>
+                          <span className="field-v">{floorDetail.cadastral.segment.area_sqm} m²</span>
+                        </div>
+                        <div className="cad-field full">
+                          <span className="field-k">Municipal Licence Ref:</span>
+                          <span className="field-v mono">{floorDetail.cadastral.segment.licence_ref}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 3: TAX & ASSESSMENT */}
+                {floorDataTab === 'tax' && (
+                  <div className="bld-dm-cards-stack">
+                    <div className="bld-cadastral-card">
+                      <div className="bld-cad-card-head">
+                        <span className="icon" style={{ color: '#34d399' }}>calculate</span>
+                        <strong>DMN Rules Engine Assessment — {floorDetail.cadastral.assessment.workflow_id}</strong>
+                      </div>
+                      <div className="bld-cad-card-grid">
+                        <div className="cad-field">
+                          <span className="field-k">Annual Rateable Value (ARV):</span>
+                          <span className="field-v highlight font-bold">₹ {floorDetail.cadastral.assessment.arv.toLocaleString()} / yr</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Assessment Model:</span>
+                          <span className="field-v mono">{floorDetail.cadastral.assessment.tax_rates_version}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Effective From:</span>
+                          <span className="field-v">{floorDetail.cadastral.assessment.effective_from}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Approval Status:</span>
+                          <span className="field-v" style={{ color: '#34d399' }}>{floorDetail.cadastral.assessment.status}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bld-cadastral-card">
+                      <div className="bld-cad-card-head">
+                        <span className="icon" style={{ color: '#f59e0b' }}>receipt_long</span>
+                        <strong>Property Tax Demand — {floorDetail.cadastral.demand.period}</strong>
+                      </div>
+                      <div className="bld-cad-card-grid">
+                        <div className="cad-field full">
+                          <span className="field-k">Itemized Heads:</span>
+                          <span className="field-v">{floorDetail.cadastral.demand.head}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Gross Demand:</span>
+                          <span className="field-v">₹ {floorDetail.cadastral.demand.amount.toLocaleString()}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Rebate (Early Bird 5%):</span>
+                          <span className="field-v" style={{ color: '#34d399' }}>-₹ {floorDetail.cadastral.demand.rebate.toLocaleString()}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Net Amount Realized:</span>
+                          <span className="field-v highlight font-bold">₹ {floorDetail.cadastral.demand.net_amount.toLocaleString()}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Payment Status:</span>
+                          <span className="col-tag-paid">{floorDetail.cadastral.demand.status}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bld-cadastral-card">
+                      <div className="bld-cad-card-head">
+                        <span className="icon" style={{ color: '#38bdf8' }}>verified</span>
+                        <strong>Payment Realization Receipt — {floorDetail.cadastral.receipt_adjustment.receipt_no}</strong>
+                      </div>
+                      <div className="bld-cad-card-grid">
+                        <div className="cad-field">
+                          <span className="field-k">Payment Ref:</span>
+                          <span className="field-v mono">{floorDetail.cadastral.receipt_adjustment.payment_ref}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Gateway Channel:</span>
+                          <span className="field-v">{floorDetail.cadastral.receipt_adjustment.channel}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Realized Timestamp:</span>
+                          <span className="field-v">{floorDetail.cadastral.receipt_adjustment.realised_at}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Maker-Checker Approver:</span>
+                          <span className="field-v mono">{floorDetail.cadastral.receipt_adjustment.approver}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 4: OWNERSHIP & LEGAL */}
+                {floorDataTab === 'legal' && (
+                  <div className="bld-dm-cards-stack">
+                    <div className="bld-cadastral-card">
+                      <div className="bld-cad-card-head">
+                        <span className="icon" style={{ color: '#00f0ff' }}>person</span>
+                        <strong>Owner Link & Title Record — {floorDetail.cadastral.owner_link.party_id}</strong>
+                      </div>
+                      <div className="bld-cad-card-grid">
+                        <div className="cad-field full">
+                          <span className="field-k">Registered Owner(s):</span>
+                          <span className="field-v font-bold" style={{ fontSize: 13, color: '#ffffff' }}>{floorDetail.cadastral.owner_link.party_name}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Citizen Master Party ID:</span>
+                          <span className="field-v mono">{floorDetail.cadastral.owner_link.party_id}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Ownership Share:</span>
+                          <span className="field-v">{floorDetail.cadastral.owner_link.share_pct}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Ownership Period:</span>
+                          <span className="field-v">{floorDetail.cadastral.owner_link.from_date} to {floorDetail.cadastral.owner_link.to_date}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Legal Title Source:</span>
+                          <span className="field-v">{floorDetail.cadastral.owner_link.source}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bld-cadastral-card">
+                      <div className="bld-cad-card-head">
+                        <span className="icon" style={{ color: '#34d399' }}>policy</span>
+                        <strong>Notices & Legal Petitions (I-17 Compliance)</strong>
+                      </div>
+                      <div className="bld-cad-card-grid">
+                        <div className="cad-field">
+                          <span className="field-k">Notice Served:</span>
+                          <span className="field-v">{floorDetail.cadastral.notice_petition.notice_type}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Served Date:</span>
+                          <span className="field-v">{floorDetail.cadastral.notice_petition.served_at}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Inspecting Officer:</span>
+                          <span className="field-v">{floorDetail.cadastral.notice_petition.served_by}</span>
+                        </div>
+                        <div className="cad-field">
+                          <span className="field-k">Geo-Point:</span>
+                          <span className="field-v mono">{floorDetail.cadastral.notice_petition.geo_point}</span>
+                        </div>
+                        <div className="cad-field full">
+                          <span className="field-k">Petition / Grounds:</span>
+                          <span className="field-v" style={{ color: '#34d399' }}>{floorDetail.cadastral.notice_petition.grounds}</span>
+                        </div>
+                        <div className="cad-field full">
+                          <span className="field-k">Dispute Case Reference:</span>
+                          <span className="field-v">{floorDetail.cadastral.notice_petition.lgl_case_ref}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB 5: SPATIAL & MEP METRICS */}
+                {floorDataTab === 'spatial' && (
+                  <>
+                    {/* Floor Metrics 4-Tile Grid */}
+                    <div className="bld-floor-kpi-grid">
+                      <div className="bld-floor-kpi">
+                        <div className="kpi-label">
+                          <span className="icon">aspect_ratio</span>
+                          <span>Plinth Area</span>
+                        </div>
+                        <div className="kpi-val">
+                          {floorDetail.areaSqm.toLocaleString()} <span className="kpi-unit">m²</span>
+                        </div>
+                        <div className="kpi-sub">
+                          {indiaMode ? `${floorDetail.areaGaj.toLocaleString()} Gaj` : `${floorDetail.areaSqft.toLocaleString()} sq ft`}
+                        </div>
+                      </div>
+
+                      <div className="bld-floor-kpi">
+                        <div className="kpi-label">
+                          <span className="icon">height</span>
+                          <span>Floor Elevation</span>
+                        </div>
+                        <div className="kpi-val">
+                          +{floorDetail.baseElevation} <span className="kpi-unit">m</span>
+                        </div>
+                        <div className="kpi-sub">
+                          Ceiling: +{floorDetail.ceilingElevation}m • {floorDetail.storyHeight}m clr
+                        </div>
+                      </div>
+
+                      <div className="bld-floor-kpi">
+                        <div className="kpi-label">
+                          <span className="icon">groups</span>
+                          <span>Est. Capacity</span>
+                        </div>
+                        <div className="kpi-val-text">{floorDetail.capacityText}</div>
+                        <div className="kpi-sub">{floorDetail.subCapacity}</div>
+                      </div>
+
+                      <div className="bld-floor-kpi">
+                        <div className="kpi-label">
+                          <span className="icon">straighten</span>
+                          <span>Envelope & Perimeter</span>
+                        </div>
+                        <div className="kpi-val">
+                          ~{floorDetail.perimeterM} <span className="kpi-unit">m</span>
+                        </div>
+                        <div className="kpi-sub">
+                          {selectedBuilding.orientation_deg ? `${selectedBuilding.orientation_deg}° Orientation` : '4 Natural Light Facades'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Space Allocation Progress Bar */}
+                    <div className="bld-floor-space-section">
+                      <div className="bld-floor-space-header">
+                        <span>Space Utilization Breakdown</span>
+                        <span className="bld-floor-space-eff">{floorDetail.usablePct}% Usable Efficiency</span>
+                      </div>
+                      <div className="bld-floor-space-bar">
+                        <div
+                          className="bld-space-seg carpet"
+                          style={{ width: `${floorDetail.usablePct}%` }}
+                          title={`Carpet / Usable Area: ${floorDetail.usableSqm} m² (${floorDetail.usablePct}%)`}
+                        />
+                        <div
+                          className="bld-space-seg core"
+                          style={{ width: `${floorDetail.corePct}%` }}
+                          title={`Core & Circulation: ${floorDetail.coreSqm} m² (${floorDetail.corePct}%)`}
+                        />
+                        <div
+                          className="bld-space-seg util"
+                          style={{ width: `${floorDetail.utilPct}%` }}
+                          title={`Utilities & Services: ${floorDetail.utilSqm} m² (${floorDetail.utilPct}%)`}
+                        />
+                      </div>
+                      <div className="bld-floor-space-legend">
+                        <div className="legend-item">
+                          <span className="legend-dot carpet" />
+                          <span>Carpet: <strong>{floorDetail.usableSqm}m²</strong></span>
+                        </div>
+                        <div className="legend-item">
+                          <span className="legend-dot core" />
+                          <span>Circulation / Core: <strong>{floorDetail.coreSqm}m²</strong></span>
+                        </div>
+                        <div className="legend-item">
+                          <span className="legend-dot util" />
+                          <span>Utilities: <strong>{floorDetail.utilSqm}m²</strong></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Floor Features & MEP Badges */}
+                    <div className="bld-floor-badges">
+                      <span className="bld-floor-feature-badge">
+                        <span className="icon" style={{ fontSize: 11, color: '#38bdf8' }}>bolt</span>
+                        Sub-Metered Power
+                      </span>
+                      <span className="bld-floor-feature-badge">
+                        <span className="icon" style={{ fontSize: 11, color: '#34d399' }}>elevator</span>
+                        Core Lift Access
+                      </span>
+                      <span className="bld-floor-feature-badge">
+                        <span className="icon" style={{ fontSize: 11, color: '#fbbf24' }}>wb_sunny</span>
+                        360° Daylight
+                      </span>
+                      {selectedBuilding.has_mumty_tank && (
+                        <span className="bld-floor-feature-badge">
+                          <span className="icon" style={{ fontSize: 11, color: '#60a5fa' }}>water_drop</span>
+                          Overhead Tank Feed
+                        </span>
+                      )}
+                      <span className="bld-floor-feature-badge">
+                        <span className="icon" style={{ fontSize: 11, color: '#f87171' }}>local_fire_department</span>
+                        Fire Egress Zone
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="bld-story-hint">
+                <span className="icon" style={{ fontSize: 13, color: '#00f0ff' }}>touch_app</span>
+                <span>Select any floor above to inspect its floorplate metrics and fly the 3D camera into that level.</span>
               </div>
             )}
           </div>
@@ -830,7 +1819,9 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
 
                     <div className="bld-card-footer">
                       <span className="bld-gps-coords">
-                        {b.centroid[1].toFixed(5)}°N, {b.centroid[0].toFixed(5)}°E
+                        {b.centroid && typeof b.centroid[1] === 'number'
+                          ? `${b.centroid[1].toFixed(5)}°N, ${b.centroid[0].toFixed(5)}°E`
+                          : 'Coordinates active'}
                       </span>
                       <button
                         type="button"

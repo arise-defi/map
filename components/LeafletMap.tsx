@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useEarthAIStore } from '../lib/earth-ai';
 import { useBuildingFootprintStore } from '../lib/building-footprint';
 import { useRoadFootprintStore, ROAD_CLASSIFICATION_STYLES, ROAD_SURFACE_STYLES } from '../lib/road-footprint';
 import { useCustomDataStore } from '../lib/custom-data';
@@ -148,9 +147,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const tileLayerInstanceRef = useRef<L.TileLayer | null>(null);
   const labelsLayerRef = useRef<L.TileLayer | null>(null);
   const markerLayerGroupRef = useRef<L.LayerGroup | null>(null);
-  const aiLayerGroupRef = useRef<L.LayerGroup | null>(null);
-  const aiMaskOverlayRef = useRef<L.ImageOverlay | null>(null);
-  const aiBoundsRectRef = useRef<L.Rectangle | null>(null);
   const bldLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const roadLayerGroupRef = useRef<L.LayerGroup | null>(null);
   const customDataLayerGroupRef = useRef<L.LayerGroup | null>(null);
@@ -202,8 +198,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const markerGroup = L.layerGroup().addTo(map);
     markerLayerGroupRef.current = markerGroup;
 
-    const aiGroup = L.layerGroup().addTo(map);
-    aiLayerGroupRef.current = aiGroup;
 
     const bldGroup = L.layerGroup().addTo(map);
     bldLayerGroupRef.current = bldGroup;
@@ -236,10 +230,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         return;
       }
 
-      const { clickToScan, analyzeTile } = useEarthAIStore.getState();
-      if (clickToScan) {
-        analyzeTile(e.latlng.lat, e.latlng.lng, map.getZoom());
-      }
 
       // GIS Tools interactions
       const gis = useGISToolsStore.getState();
@@ -324,14 +314,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         map.removeLayer(labelsLayerRef.current);
         labelsLayerRef.current = null;
       }
-      if (aiMaskOverlayRef.current) {
-        map.removeLayer(aiMaskOverlayRef.current);
-        aiMaskOverlayRef.current = null;
-      }
-      if (aiBoundsRectRef.current) {
-        map.removeLayer(aiBoundsRectRef.current);
-        aiBoundsRectRef.current = null;
-      }
       map.remove();
       mapInstanceRef.current = null;
     };
@@ -400,7 +382,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const zoomDiff = Math.abs(currentZoom - zoom);
 
     if (distLat > 0.00005 || distLng > 0.00005 || zoomDiff > 0) {
-      map.setView(center, zoom);
+      map.flyTo(center, zoom, {
+        duration: 1.25,
+        easeLinearity: 0.25,
+      });
     }
   }, [center, zoom]);
 
@@ -430,185 +415,6 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     });
   }, [markers]);
 
-  // Subscribe to Earth AI store for rendering AI land masks, tile bounds, and home polygons
-  const { currentResult, activeLayers, selectedHomeId, setSelectedHomeId } = useEarthAIStore();
-
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    const map = mapInstanceRef.current;
-
-    // 1. Render Tile Bounding Box
-    if (activeLayers.tileBounds && currentResult?.tile?.bounds) {
-      const b = currentResult.tile.bounds;
-      const boundsLatLng: L.LatLngBoundsExpression = [
-        [b.south, b.west],
-        [b.north, b.east],
-      ];
-
-      if (aiBoundsRectRef.current) {
-        aiBoundsRectRef.current.setBounds(boundsLatLng);
-      } else {
-        aiBoundsRectRef.current = L.rectangle(boundsLatLng, {
-          color: '#00f0ff',
-          weight: 2,
-          dashArray: '6, 4',
-          fillColor: '#00f0ff',
-          fillOpacity: 0.04,
-          interactive: false,
-        }).addTo(map);
-      }
-    } else {
-      if (aiBoundsRectRef.current) {
-        map.removeLayer(aiBoundsRectRef.current);
-        aiBoundsRectRef.current = null;
-      }
-    }
-
-    // 2. Render SegFormer Semantic Segmentation Mask ImageOverlay
-    if (activeLayers.mask && currentResult?.mask_image && currentResult?.tile?.bounds) {
-      const b = currentResult.tile.bounds;
-      const boundsLatLng: L.LatLngBoundsExpression = [
-        [b.south, b.west],
-        [b.north, b.east],
-      ];
-
-      if (aiMaskOverlayRef.current) {
-        map.removeLayer(aiMaskOverlayRef.current);
-      }
-
-      aiMaskOverlayRef.current = L.imageOverlay(currentResult.mask_image, boundsLatLng, {
-        opacity: activeLayers.maskOpacity,
-        zIndex: 6,
-        interactive: false,
-      }).addTo(map);
-    } else {
-      if (aiMaskOverlayRef.current) {
-        map.removeLayer(aiMaskOverlayRef.current);
-        aiMaskOverlayRef.current = null;
-      }
-    }
-
-    // 3. Render AI Vector Features (Buildings, Roads, Vehicles)
-    if (!aiLayerGroupRef.current) return;
-    const aiGroup = aiLayerGroupRef.current;
-    aiGroup.clearLayers();
-
-    if (currentResult?.geojson?.features) {
-      const geoJsonLayer = L.geoJSON(currentResult.geojson, {
-        filter: (feature) => {
-          const cat = feature?.properties?.category;
-          const id = feature?.properties?.id || '';
-
-          if (cat === 'building' || id.startsWith('building') || id.startsWith('yolo')) {
-            return !!activeLayers.homes;
-          }
-          if (cat === 'road' || id.startsWith('road')) {
-            return !!activeLayers.roads;
-          }
-          if (cat === 'vehicle' || id.startsWith('veh') || id.startsWith('opt-veh')) {
-            return !!activeLayers.vehicles;
-          }
-          return !!activeLayers.homes;
-        },
-        pointToLayer: (feature, latlng) => {
-          const cat = feature?.properties?.category;
-          if (cat === 'vehicle') {
-            return L.circleMarker(latlng, {
-              radius: 5,
-              fillColor: '#06b6d4',
-              color: '#ffffff',
-              weight: 1.5,
-              fillOpacity: 0.95,
-            });
-          }
-          return L.circleMarker(latlng, {
-            radius: 4,
-            fillColor: '#e60000',
-            color: '#ffffff',
-            weight: 1,
-            fillOpacity: 0.8,
-          });
-        },
-        style: (feature) => {
-          const props = feature?.properties || {};
-          const cat = props.category;
-          const isSelected = props.id === selectedHomeId;
-
-          if (cat === 'road') {
-            return {
-              color: '#f59e0b',
-              weight: 2,
-              fillColor: '#f59e0b',
-              fillOpacity: 0.20,
-              dashArray: '4, 2',
-            };
-          }
-
-          if (cat === 'vehicle') {
-            return {
-              color: '#06b6d4',
-              weight: 1.5,
-              fillColor: '#06b6d4',
-              fillOpacity: 0.70,
-            };
-          }
-
-          // Default: Building footprint
-          return {
-            color: isSelected ? '#ffd700' : '#e60000',
-            weight: isSelected ? 3 : 1.5,
-            fillColor: isSelected ? '#ffd700' : '#e60000',
-            fillOpacity: isSelected ? 0.35 : 0.08,
-          };
-        },
-        onEachFeature: (feature, layer) => {
-          const props = feature.properties || {};
-          const cat = props.category || 'building';
-
-          if (cat === 'road') {
-            layer.bindTooltip(
-              `
-              <div style="font-family: inherit; font-size: 11px; padding: 2px;">
-                <strong style="color: #f59e0b;">🛣️ ${props.name || 'Road Corridor'}</strong><br/>
-                <span>Area: <strong>${props.area_sqm ? props.area_sqm.toLocaleString() : 0} m²</strong></span>
-              </div>
-              `,
-              { sticky: true, className: 'earth-ai-tooltip' }
-            );
-          } else if (cat === 'vehicle') {
-            layer.bindTooltip(
-              `
-              <div style="font-family: inherit; font-size: 11px; padding: 2px;">
-                <strong style="color: #06b6d4;">🚗 Vehicle: ${props.subcategory?.toUpperCase() || 'Car'}</strong><br/>
-                <span>Conf: <strong>${Math.round((props.confidence || 0.9) * 100)}%</strong></span>
-              </div>
-              `,
-              { sticky: true, className: 'earth-ai-tooltip' }
-            );
-          } else {
-            layer.bindTooltip(
-              `
-              <div style="font-family: inherit; font-size: 11px; padding: 2px;">
-                <strong style="color: #ff0055;">🏠 ${props.id || 'Building'}</strong><br/>
-                ${props.subcategory ? `<span>Type: <strong>${props.subcategory}</strong></span><br/>` : ''}
-                <span>Area: <strong>${props.area_sqm || 0} m²</strong></span><br/>
-                <span>Conf: <strong>${Math.round((props.confidence || 0) * 100)}%</strong></span>
-              </div>
-              `,
-              { sticky: true, className: 'earth-ai-tooltip' }
-            );
-          }
-
-          layer.on('click', (e) => {
-            L.DomEvent.stopPropagation(e);
-            setSelectedHomeId(props.id);
-          });
-        },
-      });
-
-      geoJsonLayer.addTo(aiGroup);
-    }
-  }, [currentResult, activeLayers, selectedHomeId, setSelectedHomeId]);
 
   // ---------------------------------------------------------------------------
   // AI Building Footprints Integration
@@ -718,6 +524,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const strokeW = bldVisual.strokeWeight || 1.8;
 
     bldFootprints.forEach((b) => {
+      if (!b || !Array.isArray(b.polygon) || b.polygon.length < 3) return;
       const isSelected = bldSelectedId === b.id;
       const groundCoords: [number, number][] = b.polygon.map(([lon, lat]) => [lat, lon]);
       const hasStorySelection = isSelected && bldSelectedStory !== null && bldSelectedStory >= 1 && bldSelectedStory <= (b.estimated_floors || 1);
@@ -782,8 +589,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
                 weight: floorBorderW,
                 fillColor: floorWallCol,
                 fillOpacity: floorWallOp,
-                interactive: false,
+                interactive: true,
                 className: isFloorSelected ? 'bld-story-selected-wall' : '',
+              });
+              floorPoly.on('click', (e) => {
+                L.DomEvent.stopPropagation(e);
+                setBldSelectedStory(floorNum);
               });
               group.addLayer(floorPoly);
 
@@ -798,14 +609,21 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
               }
             }
 
-            // Add a floor-number label on the selected story
+            // Add an enhanced 3D floor badge on the selected story
             if (i === 0 && bldSelectedStory) {
               const fracMid = (bldSelectedStory - 0.5) / totalFloors;
               const labelLat = g1[0] + (r1[0] - g1[0]) * fracMid;
               const labelLng = g1[1] + (r1[1] - g1[1]) * fracMid;
+              const elevM = Math.round(((bldSelectedStory - 1) * (b.estimated_height_m || 3.5) / totalFloors) * 10) / 10;
               const floorLabel = L.divIcon({
                 className: 'bld-story-label-marker',
-                html: `<div class="bld-story-map-label">Floor ${bldSelectedStory}</div>`,
+                html: `
+                  <div class="bld-story-map-badge">
+                    <span class="story-badge-pulse"></span>
+                    <span class="story-badge-text">Floor ${bldSelectedStory}</span>
+                    <span class="story-badge-elev">+${elevM}m</span>
+                  </div>
+                `,
               });
               const floorMarker = L.marker([labelLat, labelLng], {
                 icon: floorLabel,
@@ -850,6 +668,47 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           }
         }
 
+        // If a specific floor is selected, render illuminated horizontal floor slab & ceiling plate
+        if (hasStorySelection && bldSelectedStory) {
+          const selFracBottom = (bldSelectedStory - 1) / totalFloors;
+          const selFracTop = bldSelectedStory / totalFloors;
+
+          const floorSlabBottomCoords: [number, number][] = b.polygon.map(([lon, lat]) => [
+            lat + offsetLat * selFracBottom,
+            lon + offsetLng * selFracBottom,
+          ]);
+          const floorSlabTopCoords: [number, number][] = b.polygon.map(([lon, lat]) => [
+            lat + offsetLat * selFracTop,
+            lon + offsetLng * selFracTop,
+          ]);
+
+          // Highlighted interior floor slab
+          const floorSlabPoly = L.polygon(floorSlabBottomCoords, {
+            color: '#00f0ff',
+            weight: 2.5,
+            fillColor: '#00f0ff',
+            fillOpacity: 0.50,
+            className: 'bld-story-slab-active',
+            interactive: true,
+          });
+          floorSlabPoly.on('click', (e) => {
+            L.DomEvent.stopPropagation(e);
+            setBldSelectedStory(bldSelectedStory);
+          });
+          group.addLayer(floorSlabPoly);
+
+          // Upper ceiling plate of the selected floor
+          const ceilingPoly = L.polygon(floorSlabTopCoords, {
+            color: '#ffffff',
+            weight: 1.5,
+            dashArray: '3, 3',
+            fillColor: '#ff0055',
+            fillOpacity: 0.15,
+            interactive: false,
+          });
+          group.addLayer(ceilingPoly);
+        }
+
         // Elevated Roof polygon
         const roofPoly = L.polygon(roofCoords, {
           color: isSelected ? '#ffffff' : strokeCol,
@@ -862,11 +721,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         group.addLayer(roofPoly);
 
         if (bldVisual.showLabels) {
+          const cLat = b.centroid && typeof b.centroid[1] === 'number' ? b.centroid[1] : (groundCoords[0]?.[0] || 0);
+          const cLng = b.centroid && typeof b.centroid[0] === 'number' ? b.centroid[0] : (groundCoords[0]?.[1] || 0);
           const labelIcon = L.divIcon({
             className: 'bld-area-label-marker',
-            html: `<div class="bld-map-label">${b.area_gaj ? `${Math.round(b.area_gaj)} Gaj` : `${Math.round(b.area_sqm)}m²`}</div>`,
+            html: `<div class="bld-map-label">${b.area_gaj ? `${Math.round(b.area_gaj)} Gaj` : `${Math.round(b.area_sqm || 0)}m²`}</div>`,
           });
-          const labelMarker = L.marker([b.centroid[1] + offsetLat, b.centroid[0] + offsetLng], {
+          const labelMarker = L.marker([cLat + offsetLat, cLng + offsetLng], {
             icon: labelIcon,
             interactive: false,
           });
@@ -884,11 +745,13 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         group.addLayer(poly);
 
         if (bldVisual.showLabels) {
+          const cLat = b.centroid && typeof b.centroid[1] === 'number' ? b.centroid[1] : (groundCoords[0]?.[0] || 0);
+          const cLng = b.centroid && typeof b.centroid[0] === 'number' ? b.centroid[0] : (groundCoords[0]?.[1] || 0);
           const labelIcon = L.divIcon({
             className: 'bld-area-label-marker',
-            html: `<div class="bld-map-label">${b.area_gaj ? `${Math.round(b.area_gaj)} Gaj` : `${Math.round(b.area_sqm)}m²`}</div>`,
+            html: `<div class="bld-map-label">${b.area_gaj ? `${Math.round(b.area_gaj)} Gaj` : `${Math.round(b.area_sqm || 0)}m²`}</div>`,
           });
-          const labelMarker = L.marker([b.centroid[1], b.centroid[0]], {
+          const labelMarker = L.marker([cLat, cLng], {
             icon: labelIcon,
             interactive: false,
           });
