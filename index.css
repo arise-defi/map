@@ -8188,3 +8188,228 @@ gmp-place-contextual-list-config {
   transform: translateX(15px);
 }
 
+
+﻿/* ============================================================
+   ARCHITECTURAL & UI REFINEMENTS (FOOTPRINT & ROAD HUD)
+   ============================================================ */
+
+/* Floating HUD Panel — clears bottom Esri attribution bar */
+.bld-panel {
+  position: fixed;
+  top: 68px;
+  right: 16px;
+  bottom: 34px;
+  width: 430px;
+  max-width: calc(100vw - 32px);
+  background: rgba(13, 18, 26, 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 25px rgba(0, 240, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  overflow: hidden;
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bld-header,
+.bld-detect-bar,
+.bld-settings-toggle,
+.bld-export-footer {
+  flex-shrink: 0;
+}
+
+.bld-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.bld-title-text-col {
+  min-width: 0;
+  flex: 1;
+}
+
+/* Scrollable Content Body */
+.bld-body-scrollable {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 240, 255, 0.25) transparent;
+}
+
+/* Story Selector inside Scrollable Body */
+.bld-story-selector {
+  margin: 0;
+  padding: 10px 11px;
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.05), rgba(0, 137, 155, 0.07));
+  border: 1px solid rgba(0, 240, 255, 0.22);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+/* 3-Column Single-Row Cadastral Identifier Strip */
+.bld-floor-cadastral-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin: 4px 0;
+}
+
+.bld-cad-badge-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 5px 7px;
+  background: rgba(0, 240, 255, 0.07);
+  border: 1px solid rgba(0, 240, 255, 0.25);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 0;
+}
+
+.bld-cad-badge-pill .cad-label {
+  font-size: 8px;
+  font-weight: 800;
+  color: #00f0ff;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
+.bld-cad-badge-pill .cad-val {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Balanced 3-Column Segmented Control */
+.bld-dm-segmented-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  background: rgba(5, 10, 16, 0.75);
+  padding: 4px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 4px 0 6px;
+}
+
+.bld-dm-seg-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 6px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.bld-dm-seg-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1f5f9;
+}
+
+.bld-dm-seg-btn.active {
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(0, 137, 155, 0.28));
+  color: #00f0ff;
+  border-color: rgba(0, 240, 255, 0.45);
+  box-shadow: 0 2px 8px rgba(0, 240, 255, 0.18);
+  font-weight: 700;
+}
+
+/* Sidebar-Optimized Stacked 9-Table Data Model Rows */
+.bld-dm-rows-list {
+  display: flex;
+  flex-direction: column;
+  divide-y: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.bld-dm-row-card {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bld-dm-row-card:last-child {
+  border-bottom: none;
+}
+
+.bld-dm-row-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bld-dm-live-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+/* Road & Custom Data Panels — match bottom offset and avoid overlap */
+.road-panel {
+  position: fixed;
+  top: 68px;
+  right: 458px;
+  bottom: 34px;
+  width: 400px;
+  max-width: calc(100vw - 474px);
+  background: rgba(15, 20, 28, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(249, 115, 22, 0.28);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 25px rgba(249, 115, 22, 0.08);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  overflow: hidden;
+  animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* When Building Footprint panel is closed, dock Road Panel to the right edge */
+.map-explorer-container:not(:has(#bld-footprint-panel)) .road-panel {
+  right: 16px;
+  max-width: calc(100vw - 32px);
+}
+
+.custom-data-panel {
+  bottom: 34px;
+  max-height: calc(100vh - 104px);
+}
+
+/* Shift bottom-right camera controls left when any right sidebar panel is open */
+.map-explorer-container:has(#bld-footprint-panel) .camera-controls-widget {
+  right: 458px;
+}
+
+:root.light-theme .bld-dm-row-card {
+  border-bottom-color: #e2e8f0;
+}

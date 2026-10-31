@@ -6,7 +6,7 @@ import {
   INDIA_CITY_PRESETS,
   IndiaCityPreset,
 } from '../lib/building-footprint';
-import { getCadastralDataForFloor, CadastralFloorDataModel } from '../lib/cadastral-model';
+import { getCadastralDataForFloor } from '../lib/cadastral-model';
 
 interface BuildingFootprintPanelProps {
   currentLat: number;
@@ -38,7 +38,6 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
     sortBy,
     lastDetectedBounds,
     detectionError,
-    togglePanel,
     closePanel,
     toggleIndiaMode,
     setDetectionMode,
@@ -56,7 +55,6 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
     exportCSV,
     copyGeoJSONToClipboard,
     applyReferenceStyle,
-    toggle3D,
     setHeightScale,
     toggleFloorBands,
     setGeometryMode,
@@ -264,7 +262,6 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
       const floorLat = selectedBuilding.centroid[1] + offsetLat;
       const floorLng = selectedBuilding.centroid[0] + offsetLng;
 
-      // Smoothly fly 3D camera right into that floor at close inspection zoom 20
       onFocusCoordinates(floorLat, floorLng, 20);
     }
   };
@@ -309,20 +306,28 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
 
   if (!isPanelOpen) return null;
 
+  const cleanPtinDisplay = floorDetail?.cadastral?.unit?.ptin
+    ? floorDetail.cadastral.unit.ptin.replace(/^PTIN-/i, '')
+    : '';
+
+  const shortUnitDisplay = floorDetail?.cadastral?.unit?.unit_no
+    ? floorDetail.cadastral.unit.unit_no.split('-').slice(-2).join('-')
+    : 'U0101';
+
   return (
     <aside className="bld-panel" id="bld-footprint-panel" aria-label="AI Building Footprint Detection">
-      {/* Top Header */}
+      {/* Sticky Top Header */}
       <div className="bld-header">
         <div className="bld-title-group">
           <div className="bld-icon-glow">
             <span className="icon">apartment</span>
           </div>
-          <div>
+          <div className="bld-title-text-col">
             <div className="bld-title-row">
               <h2 className="bld-title">AI Building Footprints</h2>
               {indiaMode && <span className="bld-india-pill">🇮🇳 India High-Precision</span>}
             </div>
-            <div className="bld-subtitle">Satellite Rooftop & Cadastral Vectorization</div>
+            <div className="bld-subtitle">Satellite Rooftop &amp; Cadastral Vectorization</div>
           </div>
         </div>
 
@@ -348,14 +353,13 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
         </div>
       </div>
 
-      {/* Detect Button — always visible at top */}
+      {/* Sticky Detect Button Bar */}
       <div className="bld-detect-bar">
         <button
           type="button"
           id="bld-run-scan-btn"
           className={`bld-scan-action-btn ${isDetecting ? 'scanning' : ''}`}
           onClick={isDetecting ? cancelDetection : handleScanCurrentView}
-
         >
           <span className="icon">{isDetecting ? 'stop_circle' : 'satellite_alt'}</span>
           <span>{isDetecting ? 'Stop Detection' : 'Detect Building Footprints'}</span>
@@ -385,241 +389,252 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
       >
         <span className="bld-settings-toggle-left">
           <span className="icon">tune</span>
-          <span>Settings & Detection Options</span>
+          <span>Settings &amp; Detection Options</span>
         </span>
         <span className="icon arrow-icon">{isSettingsExpanded ? 'expand_less' : 'expand_more'}</span>
       </button>
 
-      {isSettingsExpanded && (
-        <div className="bld-settings-content">
-          {/* India Quick Jump & Calibration Bar */}
-          <div className="bld-india-bar">
-            <button
-              type="button"
-              className={`bld-india-mode-btn ${indiaMode ? 'active' : ''}`}
-              onClick={toggleIndiaMode}
-              title="Toggle India High-Density Mode (Party-wall separation, RCC terraces, tin sheets, and Gaj measurements)"
-            >
-              <span className="icon">tune</span>
-              <span>{indiaMode ? '🇮🇳 India Calibration: ON' : 'Global Mode'}</span>
-            </button>
-
-            <button
-              type="button"
-              className={`bld-presets-toggle-btn ${isPresetsExpanded ? 'active' : ''}`}
-              onClick={() => setIsPresetsExpanded(!isPresetsExpanded)}
-              title="Quick jump to Indian cities (Bengaluru, Delhi, Mumbai, Hyderabad, Pune, Ahmedabad)"
-            >
-              <span className="icon">explore</span>
-              <span>India Presets</span>
-              <span className="icon arrow-icon">{isPresetsExpanded ? 'expand_less' : 'expand_more'}</span>
-            </button>
-          </div>
-
-          {/* India City Presets Drawer */}
-          {isPresetsExpanded && (
-            <div className="bld-presets-drawer">
-              <div className="bld-presets-title">
-                <span className="icon">travel_explore</span>
-                <span>Select Indian City to Test High Accuracy:</span>
-              </div>
-              <div className="bld-presets-grid">
-                {INDIA_CITY_PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className="bld-preset-chip"
-                    onClick={() => handleSelectPreset(p)}
-                    title={p.description}
-                  >
-                    <strong>{p.city}</strong>
-                    <span className="preset-area">{p.name.split('(')[0]}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Detection Mode & Engine Selector */}
-          <div className="bld-controls-section">
-            <div className="bld-mode-tabs" role="tablist">
+      {/* Unified Scrollable Body (Contains Settings Drawer, Floor Explorer, Data Model, and Footprint List) */}
+      <div className="bld-body-scrollable">
+        {isSettingsExpanded && (
+          <div className="bld-settings-content">
+            {/* India Quick Jump & Calibration Bar */}
+            <div className="bld-india-bar">
               <button
                 type="button"
-                role="tab"
-                aria-selected={detectionMode === 'viewport'}
-                className={`bld-mode-tab ${detectionMode === 'viewport' ? 'active' : ''}`}
-                onClick={() => handleSelectMode('viewport')}
-                title="Detect footprints across current map viewport"
+                className={`bld-india-mode-btn ${indiaMode ? 'active' : ''}`}
+                onClick={toggleIndiaMode}
+                title="Toggle India High-Density Mode (Party-wall separation, RCC terraces, tin sheets, and Gaj measurements)"
               >
-                <span className="icon">crop_free</span>
-                <span>Current View</span>
+                <span className="icon">tune</span>
+                <span>{indiaMode ? '🇮🇳 India Calibration: ON' : 'Global Mode'}</span>
               </button>
+
               <button
                 type="button"
-                role="tab"
-                aria-selected={detectionMode === 'roi-box'}
-                className={`bld-mode-tab ${detectionMode === 'roi-box' ? 'active' : ''}`}
-                onClick={() => handleSelectMode('roi-box')}
-                title="Click and drag on the map to draw a custom bounding box"
+                className={`bld-presets-toggle-btn ${isPresetsExpanded ? 'active' : ''}`}
+                onClick={() => setIsPresetsExpanded(!isPresetsExpanded)}
+                title="Quick jump to Indian cities (Bengaluru, Delhi, Mumbai, Hyderabad, Pune, Ahmedabad)"
               >
-                <span className="icon">highlight_alt</span>
-                <span>Draw ROI Box</span>
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={detectionMode === 'point-tap'}
-                className={`bld-mode-tab ${detectionMode === 'point-tap' ? 'active' : ''}`}
-                onClick={() => handleSelectMode('point-tap')}
-                title="Click directly on any building on the map to segment its footprint"
-              >
-                <span className="icon">touch_app</span>
-                <span>Point & Tap</span>
+                <span className="icon">explore</span>
+                <span>India Presets</span>
+                <span className="icon arrow-icon">{isPresetsExpanded ? 'expand_less' : 'expand_more'}</span>
               </button>
             </div>
 
-            <div className="bld-engine-row">
-              <label htmlFor="bld-engine-select" className="bld-engine-label">
-                <span className="icon">psychology</span>
-                <span>AI Engine:</span>
-              </label>
-              <select
-                id="bld-engine-select"
-                className="bld-engine-select"
-                value={detectionEngine}
-                onChange={(e) => setDetectionEngine(e.target.value as any)}
-              >
-                <option value="hybrid">⚡ Auto-Hybrid (ML + GIS + CV + Florence-2 Fusion)</option>
-                <option value="florence2-neural">🧠 Florence-2 Neural (Microsoft Building Segmentation)</option>
-                <option value="overture-ml">🎯 ML Precision (Microsoft/Overture ML Polygons)</option>
-                <option value="osm-gis">🌐 OSM GIS Ground Truth (Hand-traced Cadastral)</option>
-                <option value="cv-optical">🛰️ Optical Satellite AI (Party-Wall Decoupler)</option>
-              </select>
-            </div>
-
-            {/* Geometry, Density & 3D Options */}
-            <div className="bld-options-grid">
-              <div className="bld-option-group">
-                <span className="bld-opt-label">View 3D:</span>
-                <div className="bld-pill-group">
-                  <button
-                    type="button"
-                    className={`bld-pill-btn ${!visualSettings.show3D ? 'active' : ''}`}
-                    onClick={() => setVisualSettings({ show3D: false, fillOpacity: 0.05 })}
-                    title="2D Cadastral Vector Outlines (Reference satellite style)"
-                  >
-                    📐 2D
-                  </button>
-                  <button
-                    type="button"
-                    className={`bld-pill-btn bld-3d-btn ${visualSettings.show3D ? 'active' : ''}`}
-                    onClick={() => setVisualSettings({ show3D: true, fillOpacity: 0.35 })}
-                    title="3D Building Extrusions with facade lighting and shadows"
-                  >
-                    🏢 3D
-                  </button>
+            {/* India City Presets Drawer */}
+            {isPresetsExpanded && (
+              <div className="bld-presets-drawer">
+                <div className="bld-presets-title">
+                  <span className="icon">travel_explore</span>
+                  <span>Select Indian City to Test High Accuracy:</span>
                 </div>
-              </div>
-
-              <div className="bld-option-group">
-                <span className="bld-opt-label">Geometry:</span>
-                <div className="bld-pill-group">
-                  <button
-                    type="button"
-                    className={`bld-pill-btn ${visualSettings.geometryMode === 'obb' ? 'active' : ''}`}
-                    onClick={() => setGeometryMode('obb')}
-                    title="Oriented Bounding Box: Rotated rectangular architectural footprints (Matches reference image)"
-                  >
-                    📐 OBB
-                  </button>
-                  <button
-                    type="button"
-                    className={`bld-pill-btn ${visualSettings.geometryMode === 'hybrid' ? 'active' : ''}`}
-                    onClick={() => setGeometryMode('hybrid')}
-                    title="Smart Hybrid: Rotated rectangles for buildings and regularized contours for complex shapes"
-                  >
-                    ⚡ Hybrid
-                  </button>
-                  <button
-                    type="button"
-                    className={`bld-pill-btn ${visualSettings.geometryMode === 'contour' ? 'active' : ''}`}
-                    onClick={() => setGeometryMode('contour')}
-                    title="Polygonal Contours: Multi-vertex contours conforming to complex L/T structures"
-                  >
-                    🔷 Poly
-                  </button>
-                </div>
-              </div>
-
-              <div className="bld-option-group">
-                <span className="bld-opt-label">Coverage:</span>
-                <div className="bld-pill-group">
-                  <button
-                    type="button"
-                    className={`bld-pill-btn ${visualSettings.detectionDensity === 'ultra-dense' ? 'active' : ''}`}
-                    onClick={() => setDetectionDensity('ultra-dense')}
-                    title="Ultra-Dense: Captures all roofs, sheds, terrace mumties, and warehouses (Matches reference image)"
-                  >
-                    🔥 Dense
-                  </button>
-                  <button
-                    type="button"
-                    className={`bld-pill-btn ${visualSettings.detectionDensity === 'standard' ? 'active' : ''}`}
-                    onClick={() => setDetectionDensity('standard')}
-                    title="Standard: Focus on primary residential & commercial dwellings"
-                  >
-                    Std
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* 3D Extrusion Sub-Controls Bar (Visible when 3D is active) */}
-            {visualSettings.show3D && (
-              <div className="bld-3d-subcontrols">
-                <div className="bld-3d-sub-row">
-                  <span className="bld-3d-label">
-                    <span className="icon" style={{ fontSize: 13, color: '#00f0ff' }}>view_in_ar</span>
-                    <span>3D Height:</span>
-                  </span>
-                  <div className="bld-pill-group">
-                    {[1.0, 1.5, 2.0, 3.0].map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        className={`bld-pill-btn-sm ${visualSettings.heightScale === s ? 'active' : ''}`}
-                        onClick={() => setHeightScale(s)}
-                        title={`Set building extrusion height scale to ${s}x`}
-                      >
-                        {s}x
-                      </button>
-                    ))}
-                  </div>
-
-                  <label className="bld-3d-toggle-label" title="Render architectural floor banding lines on building facades">
-                    <input
-                      type="checkbox"
-                      checked={visualSettings.showFloorBands}
-                      onChange={toggleFloorBands}
-                    />
-                    <span className="bld-toggle-box" />
-                    <span className="bld-toggle-text">Floors</span>
-                  </label>
+                <div className="bld-presets-grid">
+                  {INDIA_CITY_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className="bld-preset-chip"
+                      onClick={() => handleSelectPreset(p)}
+                      title={p.description}
+                    >
+                      <strong>{p.city}</strong>
+                      <span className="preset-area">{p.name.split('(')[0]}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      )}
 
-      {/* Story/Floor Selector & Inspection Studio (Visible when a building is selected in 3D mode) */}
-      {visualSettings.show3D && selectedBuilding && (selectedBuilding.estimated_floors || 1) >= 2 && (
+            {/* Detection Mode & Engine Selector */}
+            <div className="bld-controls-section">
+              <div className="bld-mode-tabs" role="tablist">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={detectionMode === 'viewport'}
+                  className={`bld-mode-tab ${detectionMode === 'viewport' ? 'active' : ''}`}
+                  onClick={() => handleSelectMode('viewport')}
+                  title="Detect footprints across current map viewport"
+                >
+                  <span className="icon">crop_free</span>
+                  <span>Current View</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={detectionMode === 'roi-box'}
+                  className={`bld-mode-tab ${detectionMode === 'roi-box' ? 'active' : ''}`}
+                  onClick={() => handleSelectMode('roi-box')}
+                  title="Click and drag on the map to draw a custom bounding box"
+                >
+                  <span className="icon">highlight_alt</span>
+                  <span>Draw ROI Box</span>
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={detectionMode === 'point-tap'}
+                  className={`bld-mode-tab ${detectionMode === 'point-tap' ? 'active' : ''}`}
+                  onClick={() => handleSelectMode('point-tap')}
+                  title="Click directly on any building on the map to segment its footprint"
+                >
+                  <span className="icon">touch_app</span>
+                  <span>Point &amp; Tap</span>
+                </button>
+              </div>
+
+              <div className="bld-engine-row">
+                <label htmlFor="bld-engine-select" className="bld-engine-label">
+                  <span className="icon">psychology</span>
+                  <span>AI Engine:</span>
+                </label>
+                <select
+                  id="bld-engine-select"
+                  className="bld-engine-select"
+                  value={detectionEngine}
+                  onChange={(e) => setDetectionEngine(e.target.value as any)}
+                >
+                  <option value="hybrid">⚡ Auto-Hybrid (ML + GIS + CV + Florence-2 Fusion)</option>
+                  <option value="florence2-neural">🧠 Florence-2 Neural (Microsoft Building Segmentation)</option>
+                  <option value="overture-ml">🎯 ML Precision (Microsoft/Overture ML Polygons)</option>
+                  <option value="osm-gis">🌐 OSM GIS Ground Truth (Hand-traced Cadastral)</option>
+                  <option value="cv-optical">🛰️ Optical Satellite AI (Party-Wall Decoupler)</option>
+                </select>
+              </div>
+
+              {/* Geometry, Density & 3D Options */}
+              <div className="bld-options-grid">
+                <div className="bld-option-group">
+                  <span className="bld-opt-label">View 3D:</span>
+                  <div className="bld-pill-group">
+                    <button
+                      type="button"
+                      className={`bld-pill-btn ${!visualSettings.show3D ? 'active' : ''}`}
+                      onClick={() => setVisualSettings({ show3D: false, fillOpacity: 0.05 })}
+                      title="2D Cadastral Vector Outlines (Reference satellite style)"
+                    >
+                      📐 2D
+                    </button>
+                    <button
+                      type="button"
+                      className={`bld-pill-btn bld-3d-btn ${visualSettings.show3D ? 'active' : ''}`}
+                      onClick={() => setVisualSettings({ show3D: true, fillOpacity: 0.35 })}
+                      title="3D Building Extrusions with facade lighting and shadows"
+                    >
+                      🏢 3D
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bld-option-group">
+                  <span className="bld-opt-label">Geometry:</span>
+                  <div className="bld-pill-group">
+                    <button
+                      type="button"
+                      className={`bld-pill-btn ${visualSettings.geometryMode === 'obb' ? 'active' : ''}`}
+                      onClick={() => setGeometryMode('obb')}
+                      title="Oriented Bounding Box: Rotated rectangular architectural footprints"
+                    >
+                      📐 OBB
+                    </button>
+                    <button
+                      type="button"
+                      className={`bld-pill-btn ${visualSettings.geometryMode === 'hybrid' ? 'active' : ''}`}
+                      onClick={() => setGeometryMode('hybrid')}
+                      title="Smart Hybrid: Rotated rectangles for buildings and regularized contours"
+                    >
+                      ⚡ Hybrid
+                    </button>
+                    <button
+                      type="button"
+                      className={`bld-pill-btn ${visualSettings.geometryMode === 'contour' ? 'active' : ''}`}
+                      onClick={() => setGeometryMode('contour')}
+                      title="Polygonal Contours: Multi-vertex contours conforming to complex L/T structures"
+                    >
+                      🔷 Poly
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bld-option-group">
+                  <span className="bld-opt-label">Coverage:</span>
+                  <div className="bld-pill-group">
+                    <button
+                      type="button"
+                      className={`bld-pill-btn ${visualSettings.detectionDensity === 'ultra-dense' ? 'active' : ''}`}
+                      onClick={() => setDetectionDensity('ultra-dense')}
+                      title="Ultra-Dense: Captures all roofs, sheds, terrace mumties, and warehouses"
+                    >
+                      🔥 Dense
+                    </button>
+                    <button
+                      type="button"
+                      className={`bld-pill-btn ${visualSettings.detectionDensity === 'standard' ? 'active' : ''}`}
+                      onClick={() => setDetectionDensity('standard')}
+                      title="Standard: Focus on primary residential & commercial dwellings"
+                    >
+                      Std
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3D Extrusion Sub-Controls Bar */}
+              {visualSettings.show3D && (
+                <div className="bld-3d-subcontrols">
+                  <div className="bld-3d-sub-row">
+                    <span className="bld-3d-label">
+                      <span className="icon" style={{ fontSize: 13, color: '#00f0ff' }}>view_in_ar</span>
+                      <span>3D Height:</span>
+                    </span>
+                    <div className="bld-pill-group">
+                      {[1.0, 1.5, 2.0, 3.0].map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          className={`bld-pill-btn-sm ${visualSettings.heightScale === s ? 'active' : ''}`}
+                          onClick={() => setHeightScale(s)}
+                          title={`Set building extrusion height scale to ${s}x`}
+                        >
+                          {s}x
+                        </button>
+                      ))}
+                    </div>
+
+                    <label className="bld-3d-toggle-label" title="Render architectural floor banding lines on building facades">
+                      <input
+                        type="checkbox"
+                        checked={visualSettings.showFloorBands}
+                        onChange={toggleFloorBands}
+                      />
+                      <span className="bld-toggle-box" />
+                      <span className="bld-toggle-text">Floors</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {detectionError && (
+          <div className="bld-alert-box">
+            <span className="icon">info</span>
+            <span>{detectionError}</span>
+          </div>
+        )}
+
+        {/* Story/Floor Selector & Inspection Studio (Now smoothly scrollable inside .bld-body-scrollable) */}
+        {visualSettings.show3D && selectedBuilding && (selectedBuilding.estimated_floors || 1) >= 2 && (
           <div className="bld-story-selector" id="bld-story-selector">
             <div className="bld-story-header">
               <div className="bld-story-header-left">
                 <span className="icon" style={{ fontSize: 16, color: '#00f0ff' }}>layers</span>
                 <div className="bld-story-title-box">
-                  <span className="bld-story-title">Floor Explorer — {selectedBuilding.name || selectedBuilding.id}</span>
+                  <span className="bld-story-title">
+                    Floor Explorer — {selectedBuilding.name || selectedBuilding.id}
+                  </span>
                   <span className="bld-story-subtitle">
                     {selectedBuilding.estimated_floors} Floors • ~{selectedBuilding.estimated_height_m}m Total Height
                   </span>
@@ -728,9 +743,10 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                   </div>
                 </div>
 
-                {/* Cadastral Key Identifiers Strip */}
+                {/* Cadastral Key Identifiers Strip (3-Column Single Row, Deduplicated PTIN) */}
                 <div className="bld-floor-cadastral-strip">
-                  <div
+                  <button
+                    type="button"
                     className="bld-cad-badge-pill"
                     onClick={() => handleCopy(floorDetail.cadastral.parcel.ulpin, 'ulpin')}
                     title="Click to copy Unique Land Parcel Identification Number (ULPIN)"
@@ -740,34 +756,36 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                     <span className="icon cad-copy-icon">
                       {copiedKey === 'ulpin' ? 'check' : 'content_copy'}
                     </span>
-                  </div>
+                  </button>
 
-                  <div
+                  <button
+                    type="button"
                     className="bld-cad-badge-pill"
                     onClick={() => handleCopy(floorDetail.cadastral.unit.ptin, 'ptin')}
-                    title="Click to copy Property Tax Identification Number (PTIN)"
+                    title={`Click to copy Property Tax Identification Number (${floorDetail.cadastral.unit.ptin})`}
                   >
                     <span className="cad-label">PTIN</span>
-                    <span className="cad-val">{floorDetail.cadastral.unit.ptin}</span>
+                    <span className="cad-val">{cleanPtinDisplay}</span>
                     <span className="icon cad-copy-icon">
                       {copiedKey === 'ptin' ? 'check' : 'content_copy'}
                     </span>
-                  </div>
+                  </button>
 
-                  <div
+                  <button
+                    type="button"
                     className="bld-cad-badge-pill"
                     onClick={() => handleCopy(floorDetail.cadastral.unit.unit_no, 'unit')}
-                    title="Click to copy Unit Number (ULPIN-Bnn-Unnnn)"
+                    title={`Click to copy Unit Number (${floorDetail.cadastral.unit.unit_no})`}
                   >
                     <span className="cad-label">UNIT NO</span>
-                    <span className="cad-val">{floorDetail.cadastral?.unit?.unit_no ? floorDetail.cadastral.unit.unit_no.split('-').slice(-2).join('-') : 'U0101'}</span>
+                    <span className="cad-val">{shortUnitDisplay}</span>
                     <span className="icon cad-copy-icon">
                       {copiedKey === 'unit' ? 'check' : 'content_copy'}
                     </span>
-                  </div>
+                  </button>
                 </div>
 
-                {/* 3-Segmented Switcher (Clean, Zero Horizontal Scroll) */}
+                {/* 3-Segmented Switcher */}
                 <div className="bld-dm-segmented-control" role="tablist">
                   <button
                     type="button"
@@ -776,7 +794,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                     title="View complete 9-table cadastral & property tax data model"
                   >
                     <span className="icon">table_chart</span>
-                    <span>Data Model (9 Tables)</span>
+                    <span>Data Model (9)</span>
                   </button>
                   <button
                     type="button"
@@ -794,331 +812,356 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                     title="View spatial areas, elevation, and space utilization"
                   >
                     <span className="icon">straighten</span>
-                    <span>Spatial & MEP</span>
+                    <span>Spatial &amp; MEP</span>
                   </button>
                 </div>
 
-                {/* TAB 1: Complete 9-Table Data Model Grid (Directly matching user diagram) */}
+                {/* TAB 1: Complete 9-Table Data Model (Sidebar-Optimized Stacked Rows) */}
                 {floorDataTab === 'datamodel' && (
                   <div className="bld-datamodel-table-wrap">
                     <div className="bld-dm-table-header-row">
                       <div className="bld-dm-title-left">
                         <span className="icon" style={{ fontSize: 14, color: '#00f0ff' }}>account_tree</span>
-                        <strong className="bld-dm-head-title">Data Model — Land Parcel & Floor Tax Record</strong>
+                        <strong className="bld-dm-head-title">Data Model — Land Parcel &amp; Floor Tax Record</strong>
                       </div>
                       <span className="bld-dm-records-badge">9 Tables Linked</span>
                     </div>
 
-                    <table className="bld-dm-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: '20%' }}>Table</th>
-                          <th style={{ width: '52%' }}>Key columns & Live Records</th>
-                          <th style={{ width: '28%' }}>Notes</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {/* 1. PARCEL */}
-                        <tr>
-                          <td className="bld-dm-col-table">
-                            <span className="bld-table-tag parcel">parcel</span>
-                          </td>
-                          <td className="bld-dm-col-keys">
-                            <div className="bld-dm-schema-spec">ulpin (PK, business key), provisional_flag, survey_no, ward_id, locality_id, geom (MultiPolygon, 4326), road_id, road_class, corner_plot</div>
-                            <div className="bld-dm-live-badge">Live Record</div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">ulpin:</span>
-                              <strong className="col-val mono highlight">{floorDetail.cadastral.parcel.ulpin}</strong>
-                              <span className="col-flag">{floorDetail.cadastral.parcel.provisional_flag ? 'Provisional' : 'PK (State Registry)'}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">survey_no:</span>
-                              <span className="col-val">{floorDetail.cadastral.parcel.survey_no}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>ward_id:</span>
-                              <span className="col-val">{floorDetail.cadastral.parcel.ward_id}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">locality_id:</span>
-                              <span className="col-val">{floorDetail.cadastral.parcel.locality_id}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>road_id:</span>
-                              <span className="col-val">{floorDetail.cadastral.parcel.road_id} ({floorDetail.cadastral.parcel.road_class})</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">corner_plot:</span>
-                              <span className="col-val">{floorDetail.cadastral.parcel.corner_plot ? 'true (Corner Plot)' : 'false'}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>geom:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.parcel.geom}</span>
-                            </div>
-                          </td>
-                          <td className="bld-dm-col-notes">
-                            <div className="bld-note-text">One per land parcel; ULPIN from state registry or provisional</div>
-                          </td>
-                        </tr>
+                    <div className="bld-dm-rows-list">
+                      {/* 1. PARCEL */}
+                      <div className="bld-dm-row-card">
+                        <div className="bld-dm-row-top">
+                          <span className="bld-table-tag parcel">parcel</span>
+                          <span className="bld-note-text">One per land parcel; ULPIN from state registry or provisional</span>
+                        </div>
+                        <div className="bld-dm-schema-spec">
+                          ulpin (PK, business key), provisional_flag, survey_no, ward_id, locality_id, geom (MultiPolygon, 4326), road_id, road_class, corner_plot
+                        </div>
+                        <div className="bld-dm-live-section">
+                          <span className="bld-dm-live-badge">Live Record</span>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">ulpin:</span>
+                            <strong className="col-val mono highlight">{floorDetail.cadastral.parcel.ulpin}</strong>
+                            <span className="col-flag">
+                              {floorDetail.cadastral.parcel.provisional_flag ? 'Provisional' : 'PK (State Registry)'}
+                            </span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">survey_no:</span>
+                            <span className="col-val">{floorDetail.cadastral.parcel.survey_no}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>ward_id:</span>
+                            <span className="col-val">{floorDetail.cadastral.parcel.ward_id}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">locality_id:</span>
+                            <span className="col-val">{floorDetail.cadastral.parcel.locality_id}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>road_id:</span>
+                            <span className="col-val">
+                              {floorDetail.cadastral.parcel.road_id} ({floorDetail.cadastral.parcel.road_class})
+                            </span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">corner_plot:</span>
+                            <span className="col-val">
+                              {floorDetail.cadastral.parcel.corner_plot ? 'true (Corner Plot)' : 'false'}
+                            </span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>geom:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.parcel.geom}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                        {/* 2. BUILDING */}
-                        <tr>
-                          <td className="bld-dm-col-table">
-                            <span className="bld-table-tag building">building</span>
-                          </td>
-                          <td className="bld-dm-col-keys">
-                            <div className="bld-dm-schema-spec">building_no (ULPIN-Bnn), parcel_id, floors, height_m, footprint geom, dsm_height_m, oc_ref</div>
-                            <div className="bld-dm-live-badge">Live Record</div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">building_no:</span>
-                              <strong className="col-val mono">{floorDetail.cadastral.building.building_no}</strong>
-                              <span className="col-tag">ULPIN-Bnn</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">parcel_id:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.building.parcel_id}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>floors:</span>
-                              <span className="col-val">{floorDetail.cadastral.building.floors} fl</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>height_m:</span>
-                              <span className="col-val">{floorDetail.cadastral.building.height_m}m</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">dsm_height_m:</span>
-                              <strong className="col-val" style={{ color: '#38bdf8' }}>{floorDetail.cadastral.building.dsm_height_m}m</strong>
-                              <span className="col-name" style={{ marginLeft: 6 }}>oc_ref:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.building.oc_ref}</span>
-                            </div>
-                          </td>
-                          <td className="bld-dm-col-notes">
-                            <div className="bld-note-text">Height cross-checked with nDSM</div>
-                          </td>
-                        </tr>
+                      {/* 2. BUILDING */}
+                      <div className="bld-dm-row-card">
+                        <div className="bld-dm-row-top">
+                          <span className="bld-table-tag building">building</span>
+                          <span className="bld-note-text">Height cross-checked with nDSM</span>
+                        </div>
+                        <div className="bld-dm-schema-spec">
+                          building_no (ULPIN-Bnn), parcel_id, floors, height_m, footprint geom, dsm_height_m, oc_ref
+                        </div>
+                        <div className="bld-dm-live-section">
+                          <span className="bld-dm-live-badge">Live Record</span>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">building_no:</span>
+                            <strong className="col-val mono">{floorDetail.cadastral.building.building_no}</strong>
+                            <span className="col-tag">ULPIN-Bnn</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">parcel_id:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.building.parcel_id}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>floors:</span>
+                            <span className="col-val">{floorDetail.cadastral.building.floors} fl</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>height_m:</span>
+                            <span className="col-val">{floorDetail.cadastral.building.height_m}m</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">dsm_height_m:</span>
+                            <strong className="col-val" style={{ color: '#38bdf8' }}>
+                              {floorDetail.cadastral.building.dsm_height_m}m
+                            </strong>
+                            <span className="col-name" style={{ marginLeft: 6 }}>oc_ref:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.building.oc_ref}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                        {/* 3. UNIT */}
-                        <tr className="bld-dm-row-active-unit">
-                          <td className="bld-dm-col-table">
+                      {/* 3. UNIT */}
+                      <div className="bld-dm-row-card bld-dm-row-active-unit">
+                        <div className="bld-dm-row-top">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span className="bld-table-tag unit">unit</span>
                             <span className="bld-dm-active-pill">Active Floor</span>
-                          </td>
-                          <td className="bld-dm-col-keys">
-                            <div className="bld-dm-schema-spec">ptin, unit_no (ULPIN-Bnn-Unnnn), building_id, usage, occupancy, plinth_area, carpet_area, legacy_no[]</div>
-                            <div className="bld-dm-live-badge">Active Floor Unit Record</div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">ptin:</span>
-                              <strong className="col-val mono highlight">{floorDetail.cadastral.unit.ptin}</strong>
-                              <span className="col-name" style={{ marginLeft: 6 }}>unit_no:</span>
-                              <strong className="col-val mono">{floorDetail.cadastral.unit.unit_no}</strong>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">usage:</span>
-                              <span className="col-val">{floorDetail.cadastral.unit.usage}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>occupancy:</span>
-                              <span className="col-val">{floorDetail.cadastral.unit.occupancy}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">plinth_area:</span>
-                              <span className="col-val"><strong>{floorDetail.cadastral.unit.plinth_area_sqm} m²</strong> ({floorDetail.cadastral.unit.plinth_area_sqft.toLocaleString()} sq ft)</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>carpet_area:</span>
-                              <span className="col-val"><strong>{floorDetail.cadastral.unit.carpet_area_sqm} m²</strong></span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">legacy_no[]:</span>
-                              <span className="col-val mono">[{Array.isArray(floorDetail.cadastral?.unit?.legacy_no) ? floorDetail.cadastral.unit.legacy_no.join(', ') : ''}]</span>
-                            </div>
-                          </td>
-                          <td className="bld-dm-col-notes">
-                            <div className="bld-note-text">Assessable unit; PTIN from state platform</div>
-                          </td>
-                        </tr>
+                          </div>
+                          <span className="bld-note-text">Assessable unit; PTIN from state platform</span>
+                        </div>
+                        <div className="bld-dm-schema-spec">
+                          ptin, unit_no (ULPIN-Bnn-Unnnn), building_id, usage, occupancy, plinth_area, carpet_area, legacy_no[]
+                        </div>
+                        <div className="bld-dm-live-section">
+                          <span className="bld-dm-live-badge">Active Floor Unit Record</span>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">ptin:</span>
+                            <strong className="col-val mono highlight">{floorDetail.cadastral.unit.ptin}</strong>
+                            <span className="col-name" style={{ marginLeft: 6 }}>unit_no:</span>
+                            <strong className="col-val mono">{floorDetail.cadastral.unit.unit_no}</strong>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">usage:</span>
+                            <span className="col-val">{floorDetail.cadastral.unit.usage}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>occupancy:</span>
+                            <span className="col-val">{floorDetail.cadastral.unit.occupancy}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">plinth_area:</span>
+                            <span className="col-val">
+                              <strong>{floorDetail.cadastral.unit.plinth_area_sqm} m²</strong> (
+                              {floorDetail.cadastral.unit.plinth_area_sqft.toLocaleString()} sq ft)
+                            </span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>carpet_area:</span>
+                            <span className="col-val">
+                              <strong>{floorDetail.cadastral.unit.carpet_area_sqm} m²</strong>
+                            </span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">legacy_no[]:</span>
+                            <span className="col-val mono">
+                              [{Array.isArray(floorDetail.cadastral?.unit?.legacy_no)
+                                ? floorDetail.cadastral.unit.legacy_no.join(', ')
+                                : ''}]
+                            </span>
+                          </div>
+                        </div>
+                      </div>
 
-                        {/* 4. SEGMENT */}
-                        <tr>
-                          <td className="bld-dm-col-table">
-                            <span className="bld-table-tag segment">segment</span>
-                          </td>
-                          <td className="bld-dm-col-keys">
-                            <div className="bld-dm-schema-spec">unit_id, segment_type (ATM, kiosk, tower, hoarding), area_sqm, licence_ref</div>
-                            <div className="bld-dm-live-badge">Live Record</div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">unit_id:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.segment.unit_id}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">segment_type:</span>
-                              <strong className="col-val" style={{ color: '#fbbf24' }}>{floorDetail.cadastral.segment.segment_type}</strong>
-                              <span className="col-name" style={{ marginLeft: 6 }}>area_sqm:</span>
-                              <span className="col-val"><strong>{floorDetail.cadastral.segment.area_sqm} m²</strong></span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">licence_ref:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.segment.licence_ref}</span>
-                            </div>
-                          </td>
-                          <td className="bld-dm-col-notes">
-                            <div className="bld-note-text">Part-area use taxed on its own area</div>
-                          </td>
-                        </tr>
+                      {/* 4. SEGMENT */}
+                      <div className="bld-dm-row-card">
+                        <div className="bld-dm-row-top">
+                          <span className="bld-table-tag segment">segment</span>
+                          <span className="bld-note-text">Part-area use taxed on its own area</span>
+                        </div>
+                        <div className="bld-dm-schema-spec">
+                          unit_id, segment_type (ATM, kiosk, tower, hoarding), area_sqm, licence_ref
+                        </div>
+                        <div className="bld-dm-live-section">
+                          <span className="bld-dm-live-badge">Live Record</span>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">unit_id:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.segment.unit_id}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">segment_type:</span>
+                            <strong className="col-val" style={{ color: '#fbbf24' }}>
+                              {floorDetail.cadastral.segment.segment_type}
+                            </strong>
+                            <span className="col-name" style={{ marginLeft: 6 }}>area_sqm:</span>
+                            <span className="col-val">
+                              <strong>{floorDetail.cadastral.segment.area_sqm} m²</strong>
+                            </span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">licence_ref:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.segment.licence_ref}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                        {/* 5. OWNER_LINK */}
-                        <tr>
-                          <td className="bld-dm-col-table">
-                            <span className="bld-table-tag owner">owner_link</span>
-                          </td>
-                          <td className="bld-dm-col-keys">
-                            <div className="bld-dm-schema-spec">unit_id, party_id, share_pct, from_date, to_date, source (deed, mutation)</div>
-                            <div className="bld-dm-live-badge">Live Record</div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">party_id:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.owner_link.party_id}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>name:</span>
-                              <strong className="col-val">{floorDetail.cadastral.owner_link.party_name}</strong>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">share_pct:</span>
-                              <span className="col-val">{floorDetail.cadastral.owner_link.share_pct}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>validity:</span>
-                              <span className="col-val">{floorDetail.cadastral.owner_link.from_date} to {floorDetail.cadastral.owner_link.to_date}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">source:</span>
-                              <span className="col-val">{floorDetail.cadastral.owner_link.source}</span>
-                            </div>
-                          </td>
-                          <td className="bld-dm-col-notes">
-                            <div className="bld-note-text">Ownership history; party in citizen master</div>
-                          </td>
-                        </tr>
+                      {/* 5. OWNER_LINK */}
+                      <div className="bld-dm-row-card">
+                        <div className="bld-dm-row-top">
+                          <span className="bld-table-tag owner">owner_link</span>
+                          <span className="bld-note-text">Ownership history; party in citizen master</span>
+                        </div>
+                        <div className="bld-dm-schema-spec">
+                          unit_id, party_id, share_pct, from_date, to_date, source (deed, mutation)
+                        </div>
+                        <div className="bld-dm-live-section">
+                          <span className="bld-dm-live-badge">Live Record</span>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">party_id:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.owner_link.party_id}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>name:</span>
+                            <strong className="col-val">{floorDetail.cadastral.owner_link.party_name}</strong>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">share_pct:</span>
+                            <span className="col-val">{floorDetail.cadastral.owner_link.share_pct}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>validity:</span>
+                            <span className="col-val">
+                              {floorDetail.cadastral.owner_link.from_date} to {floorDetail.cadastral.owner_link.to_date}
+                            </span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">source:</span>
+                            <span className="col-val">{floorDetail.cadastral.owner_link.source}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                        {/* 6. ASSESSMENT */}
-                        <tr>
-                          <td className="bld-dm-col-table">
-                            <span className="bld-table-tag assessment">assessment</span>
-                          </td>
-                          <td className="bld-dm-col-keys">
-                            <div className="bld-dm-schema-spec">unit_id, type (new, re, back, self, revision), arv, tax_rates_version, effective_from, status, workflow_id</div>
-                            <div className="bld-dm-live-badge">Live Record</div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">arv:</span>
-                              <strong className="col-val" style={{ color: '#34d399' }}>₹ {floorDetail.cadastral.assessment.arv.toLocaleString()} / annum</strong>
-                              <span className="col-name" style={{ marginLeft: 6 }}>type:</span>
-                              <span className="col-val">{floorDetail.cadastral.assessment.type}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">tax_rates_version:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.assessment.tax_rates_version}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>effective_from:</span>
-                              <span className="col-val">{floorDetail.cadastral.assessment.effective_from}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">status:</span>
-                              <span className="col-val" style={{ color: '#34d399' }}>{floorDetail.cadastral.assessment.status}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>workflow_id:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.assessment.workflow_id}</span>
-                            </div>
-                          </td>
-                          <td className="bld-dm-col-notes">
-                            <div className="bld-note-text">Calculated by rules engine DMN</div>
-                          </td>
-                        </tr>
+                      {/* 6. ASSESSMENT */}
+                      <div className="bld-dm-row-card">
+                        <div className="bld-dm-row-top">
+                          <span className="bld-table-tag assessment">assessment</span>
+                          <span className="bld-note-text">Calculated by rules engine DMN</span>
+                        </div>
+                        <div className="bld-dm-schema-spec">
+                          unit_id, type (new, re, back, self, revision), arv, tax_rates_version, effective_from, status, workflow_id
+                        </div>
+                        <div className="bld-dm-live-section">
+                          <span className="bld-dm-live-badge">Live Record</span>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">arv:</span>
+                            <strong className="col-val" style={{ color: '#34d399' }}>
+                              ₹ {floorDetail.cadastral.assessment.arv.toLocaleString()} / annum
+                            </strong>
+                            <span className="col-name" style={{ marginLeft: 6 }}>type:</span>
+                            <span className="col-val">{floorDetail.cadastral.assessment.type}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">tax_rates_version:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.assessment.tax_rates_version}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>effective_from:</span>
+                            <span className="col-val">{floorDetail.cadastral.assessment.effective_from}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">status:</span>
+                            <span className="col-val" style={{ color: '#34d399' }}>
+                              {floorDetail.cadastral.assessment.status}
+                            </span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>workflow_id:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.assessment.workflow_id}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                        {/* 7. DEMAND */}
-                        <tr>
-                          <td className="bld-dm-col-table">
-                            <span className="bld-table-tag demand">demand</span>
-                          </td>
-                          <td className="bld-dm-col-keys">
-                            <div className="bld-dm-schema-spec">unit_id, period (H1/H2 yyyy), head (tax, cess, penalty, interest, arrear), amount, rebate, due_date, status</div>
-                            <div className="bld-dm-live-badge">Live Record</div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">period:</span>
-                              <span className="col-val font-semibold">{floorDetail.cadastral.demand.period}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>due_date:</span>
-                              <span className="col-val">{floorDetail.cadastral.demand.due_date}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">head:</span>
-                              <span className="col-val">{floorDetail.cadastral.demand.head}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">amount:</span>
-                              <strong className="col-val">₹ {floorDetail.cadastral.demand.amount.toLocaleString()}</strong>
-                              <span className="col-name" style={{ marginLeft: 6 }}>rebate:</span>
-                              <span className="col-val" style={{ color: '#34d399' }}>-₹ {floorDetail.cadastral.demand.rebate.toLocaleString()}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>status:</span>
-                              <span className="col-tag-paid">{floorDetail.cadastral.demand.status}</span>
-                            </div>
-                          </td>
-                          <td className="bld-dm-col-notes">
-                            <div className="bld-note-text">Immutable lines; corrections by adjustment</div>
-                          </td>
-                        </tr>
+                      {/* 7. DEMAND */}
+                      <div className="bld-dm-row-card">
+                        <div className="bld-dm-row-top">
+                          <span className="bld-table-tag demand">demand</span>
+                          <span className="bld-note-text">Immutable lines; corrections by adjustment</span>
+                        </div>
+                        <div className="bld-dm-schema-spec">
+                          unit_id, period (H1/H2 yyyy), head (tax, cess, penalty, interest, arrear), amount, rebate, due_date, status
+                        </div>
+                        <div className="bld-dm-live-section">
+                          <span className="bld-dm-live-badge">Live Record</span>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">period:</span>
+                            <span className="col-val font-semibold">{floorDetail.cadastral.demand.period}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>due_date:</span>
+                            <span className="col-val">{floorDetail.cadastral.demand.due_date}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">head:</span>
+                            <span className="col-val">{floorDetail.cadastral.demand.head}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">amount:</span>
+                            <strong className="col-val">₹ {floorDetail.cadastral.demand.amount.toLocaleString()}</strong>
+                            <span className="col-name" style={{ marginLeft: 6 }}>rebate:</span>
+                            <span className="col-val" style={{ color: '#34d399' }}>
+                              -₹ {floorDetail.cadastral.demand.rebate.toLocaleString()}
+                            </span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>status:</span>
+                            <span className="col-tag-paid">{floorDetail.cadastral.demand.status}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                        {/* 8. RECEIPT / ADJUSTMENT */}
-                        <tr>
-                          <td className="bld-dm-col-table">
-                            <span className="bld-table-tag receipt">receipt / adjustment</span>
-                          </td>
-                          <td className="bld-dm-col-keys">
-                            <div className="bld-dm-schema-spec">{'receipt_no, payment_ref, lines[{demand_id, amount}], channel, realised_at / adj_type, reason, approver'}</div>
-                            <div className="bld-dm-live-badge">Live Record</div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">receipt_no:</span>
-                              <strong className="col-val mono highlight">{floorDetail.cadastral.receipt_adjustment.receipt_no}</strong>
-                              <span className="col-name" style={{ marginLeft: 6 }}>channel:</span>
-                              <span className="col-val">{floorDetail.cadastral.receipt_adjustment.channel}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">payment_ref:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.receipt_adjustment.payment_ref}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>realised_at:</span>
-                              <span className="col-val">{floorDetail.cadastral.receipt_adjustment.realised_at}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">approver:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.receipt_adjustment.approver}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>adj_type:</span>
-                              <span className="col-val">{floorDetail.cadastral.receipt_adjustment.adj_type}</span>
-                            </div>
-                          </td>
-                          <td className="bld-dm-col-notes">
-                            <div className="bld-note-text">Maker-checker on adjustments</div>
-                          </td>
-                        </tr>
+                      {/* 8. RECEIPT / ADJUSTMENT */}
+                      <div className="bld-dm-row-card">
+                        <div className="bld-dm-row-top">
+                          <span className="bld-table-tag receipt">receipt / adjustment</span>
+                          <span className="bld-note-text">Maker-checker on adjustments</span>
+                        </div>
+                        <div className="bld-dm-schema-spec">
+                          {'receipt_no, payment_ref, lines[{demand_id, amount}], channel, realised_at / adj_type, reason, approver'}
+                        </div>
+                        <div className="bld-dm-live-section">
+                          <span className="bld-dm-live-badge">Live Record</span>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">receipt_no:</span>
+                            <strong className="col-val mono highlight">
+                              {floorDetail.cadastral.receipt_adjustment.receipt_no}
+                            </strong>
+                            <span className="col-name" style={{ marginLeft: 6 }}>channel:</span>
+                            <span className="col-val">{floorDetail.cadastral.receipt_adjustment.channel}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">payment_ref:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.receipt_adjustment.payment_ref}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>realised_at:</span>
+                            <span className="col-val">{floorDetail.cadastral.receipt_adjustment.realised_at}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">approver:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.receipt_adjustment.approver}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>adj_type:</span>
+                            <span className="col-val">{floorDetail.cadastral.receipt_adjustment.adj_type}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                        {/* 9. NOTICE / PETITION */}
-                        <tr>
-                          <td className="bld-dm-col-table">
-                            <span className="bld-table-tag notice">notice / petition</span>
-                          </td>
-                          <td className="bld-dm-col-keys">
-                            <div className="bld-dm-schema-spec">notice_type, served_at, served_by, geo_point / petition_no, grounds, lgl_case_ref</div>
-                            <div className="bld-dm-live-badge">Live Record</div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">notice_type:</span>
-                              <strong className="col-val">{floorDetail.cadastral.notice_petition.notice_type}</strong>
-                              <span className="col-name" style={{ marginLeft: 6 }}>served_at:</span>
-                              <span className="col-val">{floorDetail.cadastral.notice_petition.served_at}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">served_by:</span>
-                              <span className="col-val">{floorDetail.cadastral.notice_petition.served_by}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>geo_point:</span>
-                              <span className="col-val mono">{floorDetail.cadastral.notice_petition.geo_point}</span>
-                            </div>
-                            <div className="bld-dm-field-row">
-                              <span className="col-name">petition_no:</span>
-                              <span className="col-val" style={{ color: '#34d399' }}>{floorDetail.cadastral.notice_petition.petition_no}</span>
-                              <span className="col-name" style={{ marginLeft: 6 }}>lgl_case_ref:</span>
-                              <span className="col-val">{floorDetail.cadastral.notice_petition.lgl_case_ref}</span>
-                            </div>
-                          </td>
-                          <td className="bld-dm-col-notes">
-                            <div className="bld-note-text">Petitions become Legal cases (I-17)</div>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
+                      {/* 9. NOTICE / PETITION */}
+                      <div className="bld-dm-row-card">
+                        <div className="bld-dm-row-top">
+                          <span className="bld-table-tag notice">notice / petition</span>
+                          <span className="bld-note-text">Petitions become Legal cases (I-17)</span>
+                        </div>
+                        <div className="bld-dm-schema-spec">
+                          notice_type, served_at, served_by, geo_point / petition_no, grounds, lgl_case_ref
+                        </div>
+                        <div className="bld-dm-live-section">
+                          <span className="bld-dm-live-badge">Live Record</span>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">notice_type:</span>
+                            <strong className="col-val">{floorDetail.cadastral.notice_petition.notice_type}</strong>
+                            <span className="col-name" style={{ marginLeft: 6 }}>served_at:</span>
+                            <span className="col-val">{floorDetail.cadastral.notice_petition.served_at}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">served_by:</span>
+                            <span className="col-val">{floorDetail.cadastral.notice_petition.served_by}</span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>geo_point:</span>
+                            <span className="col-val mono">{floorDetail.cadastral.notice_petition.geo_point}</span>
+                          </div>
+                          <div className="bld-dm-field-row">
+                            <span className="col-name">petition_no:</span>
+                            <span className="col-val" style={{ color: '#34d399' }}>
+                              {floorDetail.cadastral.notice_petition.petition_no}
+                            </span>
+                            <span className="col-name" style={{ marginLeft: 6 }}>lgl_case_ref:</span>
+                            <span className="col-val">{floorDetail.cadastral.notice_petition.lgl_case_ref}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {/* TAB 2: ALL DETAILED CARDS VIEW */}
                 {floorDataTab === 'cards' && (
                   <div className="bld-dm-cards-stack">
-                    {/* Unit Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#00f0ff' }}>apartment</span>
@@ -1143,20 +1186,29 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Plinth Area:</span>
-                          <span className="field-v">{floorDetail.cadastral.unit.plinth_area_sqm} m² ({floorDetail.cadastral.unit.plinth_area_sqft.toLocaleString()} sq ft)</span>
+                          <span className="field-v">
+                            {floorDetail.cadastral.unit.plinth_area_sqm} m² (
+                            {floorDetail.cadastral.unit.plinth_area_sqft.toLocaleString()} sq ft)
+                          </span>
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Carpet Area:</span>
-                          <span className="field-v">{floorDetail.cadastral.unit.carpet_area_sqm} m² ({floorDetail.cadastral.unit.carpet_area_sqft.toLocaleString()} sq ft)</span>
+                          <span className="field-v">
+                            {floorDetail.cadastral.unit.carpet_area_sqm} m² (
+                            {floorDetail.cadastral.unit.carpet_area_sqft.toLocaleString()} sq ft)
+                          </span>
                         </div>
                         <div className="cad-field full">
                           <span className="field-k">Legacy Numbers:</span>
-                          <span className="field-v mono">{Array.isArray(floorDetail.cadastral?.unit?.legacy_no) ? floorDetail.cadastral.unit.legacy_no.join(' • ') : 'None'}</span>
+                          <span className="field-v mono">
+                            {Array.isArray(floorDetail.cadastral?.unit?.legacy_no)
+                              ? floorDetail.cadastral.unit.legacy_no.join(' • ')
+                              : 'None'}
+                          </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Parcel Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#38bdf8' }}>terrain</span>
@@ -1168,7 +1220,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                           <span className="field-v">{floorDetail.cadastral.parcel.survey_no}</span>
                         </div>
                         <div className="cad-field">
-                          <span className="field-k">Ward & Zone:</span>
+                          <span className="field-k">Ward &amp; Zone:</span>
                           <span className="field-v">{floorDetail.cadastral.parcel.ward_id}</span>
                         </div>
                         <div className="cad-field">
@@ -1181,7 +1233,9 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Corner Plot:</span>
-                          <span className="field-v">{floorDetail.cadastral.parcel.corner_plot ? 'Yes (Corner Advantage)' : 'Standard Mid-Block'}</span>
+                          <span className="field-v">
+                            {floorDetail.cadastral.parcel.corner_plot ? 'Yes (Corner Advantage)' : 'Standard Mid-Block'}
+                          </span>
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Registry Status:</span>
@@ -1190,7 +1244,6 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       </div>
                     </div>
 
-                    {/* Segment Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#fbbf24' }}>storefront</span>
@@ -1212,7 +1265,6 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       </div>
                     </div>
 
-                    {/* Assessment Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#34d399' }}>calculate</span>
@@ -1221,7 +1273,9 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       <div className="bld-cad-card-grid">
                         <div className="cad-field">
                           <span className="field-k">Annual Rateable Value (ARV):</span>
-                          <span className="field-v highlight font-bold">₹ {floorDetail.cadastral.assessment.arv.toLocaleString()} / yr</span>
+                          <span className="field-v highlight font-bold">
+                            ₹ {floorDetail.cadastral.assessment.arv.toLocaleString()} / yr
+                          </span>
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Assessment Model:</span>
@@ -1233,12 +1287,13 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Approval Status:</span>
-                          <span className="field-v" style={{ color: '#34d399' }}>{floorDetail.cadastral.assessment.status}</span>
+                          <span className="field-v" style={{ color: '#34d399' }}>
+                            {floorDetail.cadastral.assessment.status}
+                          </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Demand Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#f59e0b' }}>receipt_long</span>
@@ -1255,11 +1310,15 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Rebate (Early Bird 5%):</span>
-                          <span className="field-v" style={{ color: '#34d399' }}>-₹ {floorDetail.cadastral.demand.rebate.toLocaleString()}</span>
+                          <span className="field-v" style={{ color: '#34d399' }}>
+                            -₹ {floorDetail.cadastral.demand.rebate.toLocaleString()}
+                          </span>
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Net Amount Realized:</span>
-                          <span className="field-v highlight font-bold">₹ {floorDetail.cadastral.demand.net_amount.toLocaleString()}</span>
+                          <span className="field-v highlight font-bold">
+                            ₹ {floorDetail.cadastral.demand.net_amount.toLocaleString()}
+                          </span>
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Payment Status:</span>
@@ -1268,7 +1327,6 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       </div>
                     </div>
 
-                    {/* Receipt Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#38bdf8' }}>verified</span>
@@ -1294,16 +1352,17 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       </div>
                     </div>
 
-                    {/* Owner Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#00f0ff' }}>person</span>
-                        <strong>Owner Link & Title Record — {floorDetail.cadastral.owner_link.party_id}</strong>
+                        <strong>Owner Link &amp; Title Record — {floorDetail.cadastral.owner_link.party_id}</strong>
                       </div>
                       <div className="bld-cad-card-grid">
                         <div className="cad-field full">
                           <span className="field-k">Registered Owner(s):</span>
-                          <span className="field-v font-bold" style={{ fontSize: 13, color: '#ffffff' }}>{floorDetail.cadastral.owner_link.party_name}</span>
+                          <span className="field-v font-bold" style={{ fontSize: 13, color: '#ffffff' }}>
+                            {floorDetail.cadastral.owner_link.party_name}
+                          </span>
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Citizen Master Party ID:</span>
@@ -1315,7 +1374,9 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Ownership Period:</span>
-                          <span className="field-v">{floorDetail.cadastral.owner_link.from_date} to {floorDetail.cadastral.owner_link.to_date}</span>
+                          <span className="field-v">
+                            {floorDetail.cadastral.owner_link.from_date} to {floorDetail.cadastral.owner_link.to_date}
+                          </span>
                         </div>
                         <div className="cad-field">
                           <span className="field-k">Legal Title Source:</span>
@@ -1324,11 +1385,10 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       </div>
                     </div>
 
-                    {/* Notice Card */}
                     <div className="bld-cadastral-card">
                       <div className="bld-cad-card-head">
                         <span className="icon" style={{ color: '#34d399' }}>policy</span>
-                        <strong>Notices & Legal Petitions (I-17 Compliance)</strong>
+                        <strong>Notices &amp; Legal Petitions (I-17 Compliance)</strong>
                       </div>
                       <div className="bld-cad-card-grid">
                         <div className="cad-field">
@@ -1349,7 +1409,9 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                         </div>
                         <div className="cad-field full">
                           <span className="field-k">Petition / Grounds:</span>
-                          <span className="field-v" style={{ color: '#34d399' }}>{floorDetail.cadastral.notice_petition.grounds}</span>
+                          <span className="field-v" style={{ color: '#34d399' }}>
+                            {floorDetail.cadastral.notice_petition.grounds}
+                          </span>
                         </div>
                         <div className="cad-field full">
                           <span className="field-k">Dispute Case Reference:</span>
@@ -1363,7 +1425,6 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                 {/* TAB 3: SPATIAL & MEP METRICS */}
                 {floorDataTab === 'spatial' && (
                   <>
-                    {/* Floor Metrics 4-Tile Grid */}
                     <div className="bld-floor-kpi-grid">
                       <div className="bld-floor-kpi">
                         <div className="kpi-label">
@@ -1374,7 +1435,9 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                           {floorDetail.areaSqm.toLocaleString()} <span className="kpi-unit">m²</span>
                         </div>
                         <div className="kpi-sub">
-                          {indiaMode ? `${floorDetail.areaGaj.toLocaleString()} Gaj` : `${floorDetail.areaSqft.toLocaleString()} sq ft`}
+                          {indiaMode
+                            ? `${floorDetail.areaGaj.toLocaleString()} Gaj`
+                            : `${floorDetail.areaSqft.toLocaleString()} sq ft`}
                         </div>
                       </div>
 
@@ -1403,18 +1466,19 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       <div className="bld-floor-kpi">
                         <div className="kpi-label">
                           <span className="icon">straighten</span>
-                          <span>Envelope & Perimeter</span>
+                          <span>Envelope &amp; Perimeter</span>
                         </div>
                         <div className="kpi-val">
                           ~{floorDetail.perimeterM} <span className="kpi-unit">m</span>
                         </div>
                         <div className="kpi-sub">
-                          {selectedBuilding.orientation_deg ? `${selectedBuilding.orientation_deg}° Orientation` : '4 Natural Light Facades'}
+                          {selectedBuilding.orientation_deg
+                            ? `${selectedBuilding.orientation_deg}° Orientation`
+                            : '4 Natural Light Facades'}
                         </div>
                       </div>
                     </div>
 
-                    {/* Space Allocation Progress Bar */}
                     <div className="bld-floor-space-section">
                       <div className="bld-floor-space-header">
                         <span>Space Utilization Breakdown</span>
@@ -1440,20 +1504,25 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
                       <div className="bld-floor-space-legend">
                         <div className="legend-item">
                           <span className="legend-dot carpet" />
-                          <span>Carpet: <strong>{floorDetail.usableSqm}m²</strong></span>
+                          <span>
+                            Carpet: <strong>{floorDetail.usableSqm}m²</strong>
+                          </span>
                         </div>
                         <div className="legend-item">
                           <span className="legend-dot core" />
-                          <span>Circulation / Core: <strong>{floorDetail.coreSqm}m²</strong></span>
+                          <span>
+                            Circulation / Core: <strong>{floorDetail.coreSqm}m²</strong>
+                          </span>
                         </div>
                         <div className="legend-item">
                           <span className="legend-dot util" />
-                          <span>Utilities: <strong>{floorDetail.utilSqm}m²</strong></span>
+                          <span>
+                            Utilities: <strong>{floorDetail.utilSqm}m²</strong>
+                          </span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Floor Features & MEP Badges */}
                     <div className="bld-floor-badges">
                       <span className="bld-floor-feature-badge">
                         <span className="icon" style={{ fontSize: 11, color: '#38bdf8' }}>bolt</span>
@@ -1484,31 +1553,25 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
             ) : (
               <div className="bld-story-hint">
                 <span className="icon" style={{ fontSize: 13, color: '#00f0ff' }}>touch_app</span>
-                <span>Select any floor above to inspect its floorplate metrics and fly the 3D camera into that level.</span>
+                <span>
+                  Select any floor above to inspect its floorplate metrics and fly the 3D camera into that level.
+                </span>
               </div>
             )}
           </div>
         )}
 
-      {detectionError && (
-        <div className="bld-alert-box">
-          <span className="icon">info</span>
-          <span>{detectionError}</span>
-        </div>
-      )}
-
-
-      {/* Main Content Area */}
-      <div className="bld-body-scrollable">
+        {/* Detected Footprints Summary & List */}
         {footprints.length > 0 ? (
           <>
-            {/* Compact KPI Summary Bar */}
             <div className="bld-kpi-compact">
               <div className="bld-kpi-stat">
                 <span className="icon">domain</span>
                 <strong>{metrics.totalCount}</strong>
                 <span>plots</span>
-                <span className="bld-kpi-detail">Avg {metrics.avgAreaGaj.toLocaleString()} Gaj &bull; {metrics.avgFloors} fl</span>
+                <span className="bld-kpi-detail">
+                  Avg {metrics.avgAreaGaj.toLocaleString()} Gaj &bull; {metrics.avgFloors} fl
+                </span>
               </div>
               <div className="bld-kpi-divider" />
               <div className="bld-kpi-stat">
@@ -1524,25 +1587,40 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
               </div>
             </div>
 
-            {/* Source Breakdown */}
-            {footprints.length > 0 && (
-              <div className="bld-source-breakdown" style={{ display: 'flex', gap: '8px', padding: '4px 12px', fontSize: '11px', color: 'rgba(255,255,255,0.55)', flexWrap: 'wrap' }}>
-                <span>📊 Sources:</span>
-                {footprints.filter(f => f.source === 'overture-ml').length > 0 && (
-                  <span style={{ color: '#a78bfa' }}>🎯 ML: {footprints.filter(f => f.source === 'overture-ml').length}</span>
-                )}
-                {footprints.filter(f => f.source === 'florence2-neural').length > 0 && (
-                  <span style={{ color: '#f472b6' }}>🧠 Florence-2: {footprints.filter(f => f.source === 'florence2-neural').length}</span>
-                )}
-                {footprints.filter(f => f.source === 'osm-gis').length > 0 && (
-                  <span style={{ color: '#34d399' }}>🌐 OSM: {footprints.filter(f => f.source === 'osm-gis').length}</span>
-                )}
-                {footprints.filter(f => f.source === 'cv-optical').length > 0 && (
-                  <span style={{ color: '#fbbf24' }}>🛰️ CV: {footprints.filter(f => f.source === 'cv-optical').length}</span>
-                )}
-              </div>
-            )}
-            {/* Structure Classification Filters */}
+            <div
+              className="bld-source-breakdown"
+              style={{
+                display: 'flex',
+                gap: '8px',
+                padding: '4px 10px',
+                fontSize: '11px',
+                color: 'rgba(255,255,255,0.6)',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span>📊 Sources:</span>
+              {footprints.filter((f) => f.source === 'overture-ml').length > 0 && (
+                <span style={{ color: '#a78bfa' }}>
+                  🎯 ML: {footprints.filter((f) => f.source === 'overture-ml').length}
+                </span>
+              )}
+              {footprints.filter((f) => f.source === 'florence2-neural').length > 0 && (
+                <span style={{ color: '#f472b6' }}>
+                  🧠 Florence-2: {footprints.filter((f) => f.source === 'florence2-neural').length}
+                </span>
+              )}
+              {footprints.filter((f) => f.source === 'osm-gis').length > 0 && (
+                <span style={{ color: '#34d399' }}>
+                  🌐 OSM: {footprints.filter((f) => f.source === 'osm-gis').length}
+                </span>
+              )}
+              {footprints.filter((f) => f.source === 'cv-optical').length > 0 && (
+                <span style={{ color: '#fbbf24' }}>
+                  🛰️ CV: {footprints.filter((f) => f.source === 'cv-optical').length}
+                </span>
+              )}
+            </div>
+
             <div className="bld-categories-bar">
               <span className="bld-cat-title">Filter Structure:</span>
               <div className="bld-cat-chips">
@@ -1610,8 +1688,11 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
               </div>
             </div>
 
-            {/* Collapsible Visual Style Section */}
-            <button type="button" className="bld-style-toggle" onClick={() => setIsStyleExpanded(!isStyleExpanded)}>
+            <button
+              type="button"
+              className="bld-style-toggle"
+              onClick={() => setIsStyleExpanded(!isStyleExpanded)}
+            >
               <span className="bld-style-toggle-left">
                 <span className="icon">palette</span>
                 <span>Visual Style</span>
@@ -1620,93 +1701,92 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
             </button>
 
             {isStyleExpanded && (
-            <div className="bld-visual-toolbar">
-              <div className="bld-ref-style-banner">
-                <button
-                  type="button"
-                  className="bld-match-ref-btn"
-                  onClick={applyReferenceStyle}
-                  title="Apply AI Cadastral Red 2D vector outlines matching the reference satellite image"
-                >
-                  <span className="icon" style={{ color: '#ef4444' }}>auto_awesome</span>
-                  <span>Match Reference View (AI Red 2D Outlines)</span>
-                </button>
-              </div>
-
-              <div className="bld-visual-row">
-                <span className="bld-visual-label">
-                  <span className="icon">palette</span>
-                  <span>Color:</span>
-                </span>
-                <div className="bld-color-pickers">
-                  {colorThemes.map((c) => (
-                    <button
-                      key={c.value}
-                      type="button"
-                      className={`bld-color-dot ${visualSettings.strokeColor === c.value ? 'selected' : ''}`}
-                      style={{ backgroundColor: c.value }}
-                      onClick={() => setVisualSettings({ strokeColor: c.value })}
-                      title={c.label}
-                    />
-                  ))}
+              <div className="bld-visual-toolbar">
+                <div className="bld-ref-style-banner">
+                  <button
+                    type="button"
+                    className="bld-match-ref-btn"
+                    onClick={applyReferenceStyle}
+                    title="Apply AI Cadastral Red 2D vector outlines matching the reference satellite image"
+                  >
+                    <span className="icon" style={{ color: '#ef4444' }}>auto_awesome</span>
+                    <span>Match Reference View (AI Red 2D Outlines)</span>
+                  </button>
                 </div>
 
-                <label className="bld-3d-toggle-label" title="Render 3D isometric building block extrusions">
-                  <input
-                    type="checkbox"
-                    checked={visualSettings.show3D}
-                    onChange={(e) => setVisualSettings({ show3D: e.target.checked })}
-                  />
-                  <span className="bld-toggle-box" />
-                  <span className="bld-toggle-text">3D Extrude</span>
-                </label>
-
-                <label className="bld-labels-toggle-label" title="Show roof area labels over footprints">
-                  <input
-                    type="checkbox"
-                    checked={visualSettings.showLabels}
-                    onChange={(e) => setVisualSettings({ showLabels: e.target.checked })}
-                  />
-                  <span className="bld-toggle-box" />
-                  <span className="bld-toggle-text">Labels</span>
-                </label>
-              </div>
-
-              <div className="bld-weight-and-opacity-row">
-                <div className="bld-weight-group">
-                  <span className="bld-slider-label">Weight:</span>
-                  <div className="bld-weight-pills">
-                    {[1.2, 1.8, 2.5].map((w) => (
+                <div className="bld-visual-row">
+                  <span className="bld-visual-label">
+                    <span className="icon">palette</span>
+                    <span>Color:</span>
+                  </span>
+                  <div className="bld-color-pickers">
+                    {colorThemes.map((c) => (
                       <button
-                        key={w}
+                        key={c.value}
                         type="button"
-                        className={`bld-weight-pill ${visualSettings.strokeWeight === w ? 'active' : ''}`}
-                        onClick={() => setVisualSettings({ strokeWeight: w })}
-                      >
-                        {w}px
-                      </button>
+                        className={`bld-color-dot ${visualSettings.strokeColor === c.value ? 'selected' : ''}`}
+                        style={{ backgroundColor: c.value }}
+                        onClick={() => setVisualSettings({ strokeColor: c.value })}
+                        title={c.label}
+                      />
                     ))}
                   </div>
+
+                  <label className="bld-3d-toggle-label" title="Render 3D isometric building block extrusions">
+                    <input
+                      type="checkbox"
+                      checked={visualSettings.show3D}
+                      onChange={(e) => setVisualSettings({ show3D: e.target.checked })}
+                    />
+                    <span className="bld-toggle-box" />
+                    <span className="bld-toggle-text">3D Extrude</span>
+                  </label>
+
+                  <label className="bld-labels-toggle-label" title="Show roof area labels over footprints">
+                    <input
+                      type="checkbox"
+                      checked={visualSettings.showLabels}
+                      onChange={(e) => setVisualSettings({ showLabels: e.target.checked })}
+                    />
+                    <span className="bld-toggle-box" />
+                    <span className="bld-toggle-text">Labels</span>
+                  </label>
                 </div>
 
-                <div className="bld-opacity-group">
-                  <span className="bld-slider-label">Fill:</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="0.8"
-                    step="0.05"
-                    value={visualSettings.fillOpacity}
-                    onChange={(e) => setVisualSettings({ fillOpacity: parseFloat(e.target.value) })}
-                    className="bld-opacity-slider"
-                  />
-                  <span className="bld-slider-val">{Math.round(visualSettings.fillOpacity * 100)}%</span>
+                <div className="bld-weight-and-opacity-row">
+                  <div className="bld-weight-group">
+                    <span className="bld-slider-label">Weight:</span>
+                    <div className="bld-weight-pills">
+                      {[1.2, 1.8, 2.5].map((w) => (
+                        <button
+                          key={w}
+                          type="button"
+                          className={`bld-weight-pill ${visualSettings.strokeWeight === w ? 'active' : ''}`}
+                          onClick={() => setVisualSettings({ strokeWeight: w })}
+                        >
+                          {w}px
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bld-opacity-group">
+                    <span className="bld-slider-label">Fill:</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="0.8"
+                      step="0.05"
+                      value={visualSettings.fillOpacity}
+                      onChange={(e) => setVisualSettings({ fillOpacity: parseFloat(e.target.value) })}
+                      className="bld-opacity-slider"
+                    />
+                    <span className="bld-slider-val">{Math.round(visualSettings.fillOpacity * 100)}%</span>
+                  </div>
                 </div>
               </div>
-            </div>
             )}
 
-            {/* Search & Sort Controls */}
             <div className="bld-filter-row">
               <div className="bld-search-wrap">
                 <span className="icon">search</span>
@@ -1735,7 +1815,6 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
               </select>
             </div>
 
-            {/* List of Detected Building Footprints */}
             <div className="bld-cards-list">
               {filteredFootprints.slice(0, 100).map((b) => {
                 const isSelected = selectedFootprintId === b.id;
@@ -1849,7 +1928,7 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
         )}
       </div>
 
-      {/* Bottom Export Action Footer */}
+      {/* Sticky Bottom Export Action Footer */}
       {footprints.length > 0 && (
         <div className="bld-export-footer">
           <button
@@ -1887,3 +1966,4 @@ export const BuildingFootprintPanel: React.FC<BuildingFootprintPanelProps> = ({
     </aside>
   );
 };
+
